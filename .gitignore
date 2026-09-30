@@ -1,0 +1,40 @@
+# Data (re-created by the download scripts; keep folder placeholders)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Models & experiment tracking
+/models/
+*.pt
+*.pkl
+*.joblib
+mlruns/
+mlartifacts/
+lightning_logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments & secrets
+.venv/
+venv/
+env/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
