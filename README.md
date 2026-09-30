@@ -123,8 +123,4 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 
 **Thanh Vinh Dang**: Accounting and Audit background, moving into data-driven finance.
 
-[LinkedIn](https://www.linkedin.com/in/thanhvinhdang2001) · [GitHub](https://github.com/vinhdang111) · thanhvinhdang.work@gmail.com
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+[LinkedIn](https://www.linkedin.com/in/thanhvinhdang2001) · thanhvinhdang.work@gmail.com
