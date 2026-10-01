@@ -1,8 +1,7 @@
-# Data (re-created by the download scripts; keep folder placeholders)
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+# Local data exports (the data itself lives in PostgreSQL)
+*.parquet
+*.csv
+!data/universe.csv
 
 # Models & experiment tracking
 /models/
