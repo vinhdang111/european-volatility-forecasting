@@ -166,6 +166,6 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 
 ## Author
 
-**Thanh Vinh Dang**: Accounting and Audit background, moving into data-driven finance.
+**Thanh Vinh Dang**
 
 [LinkedIn](https://www.linkedin.com/in/thanhvinhdang2001) · thanhvinhdang.work@gmail.com
