@@ -1,0 +1,2 @@
+# Show SQL in the GitHub "Languages" bar (SQL is classed as a data language and hidden by default)
+*.sql linguist-detectable=true linguist-language=PLpgSQL
