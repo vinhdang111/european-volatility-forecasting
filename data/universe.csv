@@ -1,0 +1,61 @@
+ticker,name,asset_type,country,exchange,sector,currency,note
+MC.PA,LVMH,stock,France,Euronext Paris,Consumer Discretionary,EUR,
+TTE.PA,TotalEnergies,stock,France,Euronext Paris,Energy,EUR,Ticker changed from FP.PA in 2021
+SAN.PA,Sanofi,stock,France,Euronext Paris,Health Care,EUR,
+BNP.PA,BNP Paribas,stock,France,Euronext Paris,Banks,EUR,
+AIR.PA,Airbus,stock,France,Euronext Paris,Industrials,EUR,
+OR.PA,L'Oreal,stock,France,Euronext Paris,Consumer Staples,EUR,
+SU.PA,Schneider Electric,stock,France,Euronext Paris,Industrials,EUR,
+AI.PA,Air Liquide,stock,France,Euronext Paris,Materials,EUR,
+SAP.DE,SAP,stock,Germany,Xetra,Technology,EUR,
+SIE.DE,Siemens,stock,Germany,Xetra,Industrials,EUR,
+ALV.DE,Allianz,stock,Germany,Xetra,Insurance,EUR,
+DTE.DE,Deutsche Telekom,stock,Germany,Xetra,Telecom,EUR,
+BAS.DE,BASF,stock,Germany,Xetra,Materials,EUR,
+MBG.DE,Mercedes-Benz Group,stock,Germany,Xetra,Consumer Discretionary,EUR,Formerly Daimler (DAI.DE) until 2022
+DBK.DE,Deutsche Bank,stock,Germany,Xetra,Banks,EUR,
+BAYN.DE,Bayer,stock,Germany,Xetra,Health Care,EUR,
+NESN.SW,Nestle,stock,Switzerland,SIX,Consumer Staples,CHF,
+NOVN.SW,Novartis,stock,Switzerland,SIX,Health Care,CHF,
+RO.SW,Roche,stock,Switzerland,SIX,Health Care,CHF,Bearer shares (ROG.SW not available on Yahoo)
+UBSG.SW,UBS Group,stock,Switzerland,SIX,Banks,CHF,Holding company listed since 2014 (older history under UBSN.SW)
+ZURN.SW,Zurich Insurance,stock,Switzerland,SIX,Insurance,CHF,
+ABBN.SW,ABB,stock,Switzerland,SIX,Industrials,CHF,
+SHEL.L,Shell,stock,United Kingdom,London,Energy,GBp,Unified share line since 2022; check history length
+AZN.L,AstraZeneca,stock,United Kingdom,London,Health Care,GBp,
+HSBA.L,HSBC,stock,United Kingdom,London,Banks,GBp,
+BP.L,BP,stock,United Kingdom,London,Energy,GBp,
+ULVR.L,Unilever,stock,United Kingdom,London,Consumer Staples,GBp,
+RIO.L,Rio Tinto,stock,United Kingdom,London,Materials,GBp,
+VOD.L,Vodafone,stock,United Kingdom,London,Telecom,GBp,
+ASML.AS,ASML,stock,Netherlands,Euronext Amsterdam,Technology,EUR,
+INGA.AS,ING Group,stock,Netherlands,Euronext Amsterdam,Banks,EUR,
+PHIA.AS,Philips,stock,Netherlands,Euronext Amsterdam,Health Care,EUR,
+AD.AS,Ahold Delhaize,stock,Netherlands,Euronext Amsterdam,Consumer Staples,EUR,Merger of Ahold and Delhaize in 2016
+MT.AS,ArcelorMittal,stock,Luxembourg,Euronext Amsterdam,Materials,EUR,Headquartered in Luxembourg; formed 2006
+SAN.MC,Banco Santander,stock,Spain,BME Madrid,Banks,EUR,
+IBE.MC,Iberdrola,stock,Spain,BME Madrid,Utilities,EUR,
+ITX.MC,Inditex,stock,Spain,BME Madrid,Consumer Discretionary,EUR,Listed 2001
+TEF.MC,Telefonica,stock,Spain,BME Madrid,Telecom,EUR,
+ENEL.MI,Enel,stock,Italy,Borsa Italiana,Utilities,EUR,
+ENI.MI,Eni,stock,Italy,Borsa Italiana,Energy,EUR,
+ISP.MI,Intesa Sanpaolo,stock,Italy,Borsa Italiana,Banks,EUR,
+NOVO-B.CO,Novo Nordisk,stock,Denmark,Nasdaq Copenhagen,Health Care,DKK,
+MAERSK-B.CO,A.P. Moller-Maersk,stock,Denmark,Nasdaq Copenhagen,Industrials,DKK,
+EQNR.OL,Equinor,stock,Norway,Oslo Bors,Energy,NOK,Listed 2001 (as Statoil)
+VOLV-B.ST,Volvo,stock,Sweden,Nasdaq Stockholm,Industrials,SEK,
+ERIC-B.ST,Ericsson,stock,Sweden,Nasdaq Stockholm,Technology,SEK,
+ATCO-A.ST,Atlas Copco,stock,Sweden,Nasdaq Stockholm,Industrials,SEK,
+NOKIA.HE,Nokia,stock,Finland,Nasdaq Helsinki,Technology,EUR,
+NDA-FI.HE,Nordea,stock,Finland,Nasdaq Helsinki,Banks,EUR,Moved listing to Helsinki in 2018 (earlier history in Stockholm)
+ABI.BR,AB InBev,stock,Belgium,Euronext Brussels,Consumer Staples,EUR,InBev + Anheuser-Busch merger 2008
+^STOXX50E,Euro Stoxx 50,index,Eurozone,STOXX,,EUR,
+^FCHI,CAC 40,index,France,Euronext Paris,,EUR,
+^GDAXI,DAX,index,Germany,Xetra,,EUR,Total-return index (dividends reinvested)
+^FTSE,FTSE 100,index,United Kingdom,London,,GBP,
+^SSMI,SMI,index,Switzerland,SIX,,CHF,
+^AEX,AEX,index,Netherlands,Euronext Amsterdam,,EUR,
+^IBEX,IBEX 35,index,Spain,BME Madrid,,EUR,
+FTSEMIB.MI,FTSE MIB,index,Italy,Borsa Italiana,,EUR,Check history length on Yahoo
+^OMX,OMX Stockholm 30,index,Sweden,Nasdaq Stockholm,,SEK,
+^VIX,CBOE Volatility Index,external,United States,CBOE,,USD,US market close is after European close: lag by one day before use
