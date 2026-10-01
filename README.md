@@ -159,7 +159,7 @@ Known limitations:
 - **Machine learning:** scikit-learn, LightGBM, Optuna, SHAP
 - **Deep learning:** PyTorch, neuralforecast
 - **Experiment tracking and testing:** MLflow, pytest
-- **Visualisation and app:** matplotlib, plotly, Streamlit
+- **Visualisation and dashboard:** matplotlib, plotly, Power BI (connected to PostgreSQL)
 
 ## Repository structure
 
@@ -178,7 +178,7 @@ european-volatility-forecasting/
 │   └── evaluation/     # walk-forward backtest, loss functions, tests
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
-├── app/                # Streamlit dashboard
+├── powerbi/            # Power BI dashboard (.pbix)
 ├── .env.example        # template for database credentials
 ├── requirements.txt
 └── requirements-dl.txt # deep learning dependencies
@@ -225,7 +225,7 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 | 8 | Deep learning (LSTM, transformer) | ⬜ |
 | 9 | Model comparison and statistical analysis | ⬜ |
 | 10 | Application: Value-at-Risk backtesting | ⬜ |
-| 11 | Interactive dashboard | ⬜ |
+| 11 | Interactive dashboard (Power BI) | ⬜ |
 | 12 | Final report and documentation | ⬜ |
 
 ## Author

@@ -22,10 +22,9 @@ shap>=0.44
 # Experiment tracking
 mlflow>=2.9
 
-# Visualisation & app
+# Visualisation
 matplotlib>=3.7
 plotly>=5.18
-streamlit>=1.30
 
 # Notebooks & testing
 jupyter>=1.0
