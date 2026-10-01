@@ -72,7 +72,8 @@ All data is stored in a local **PostgreSQL** database (`volatility_db`). The sch
 
 ```
 universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV from Yahoo
-           │
+           ├──< prices_clean        (ticker, date)  cleaned prices (Step 2)
+           ├──< cleaning_log                        every correction made (Step 2)
            └──< download_log >──── download_runs    audit trail of every download
 ```
 
@@ -83,6 +84,9 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `download_runs` | 1 row per run | Date range requested, start/end time, tickers and rows downloaded |
 | `download_log` | 1 row per ticker per run | Status, first/last date, years of history, missing values, zero-volume days, suspicious jumps (> 50%) |
 | `latest_download_report` *(view)* | 1 row per ticker | Quality report of the most recent run |
+| `prices_clean` | 1 row per ticker and trading day | Cleaned prices, with sanity constraints (Step 2) |
+| `cleaning_log` | 1 row per change | Ticker, date, rule, action and detail of every correction (Step 2) |
+| `cleaning_summary`, `data_coverage` *(views)* | 1 row per rule / ticker | Summary of the cleaning; rows kept and dropped per ticker |
 
 ### Download pipeline
 
@@ -99,12 +103,40 @@ Design choices:
 - **Robust downloading.** Each ticker is retried up to 3 times, and a missing ticker does not stop the pipeline.
 - **Credentials stay local.** Connection settings live in a `.env` file that is never committed (template: [`.env.example`](.env.example)).
 
-Known limitations to address in Step 2:
+## Data quality
+
+Raw Yahoo Finance data contains several kinds of errors. [`src/data/clean_prices.py`](src/data/clean_prices.py) rebuilds `prices_clean` from `prices_raw` with seven documented rules, and records **every change** (ticker, date, rule, action, detail) in the `cleaning_log` table. The full investigation is in [`notebooks/01_data_quality.ipynb`](notebooks/01_data_quality.ipynb).
+
+![Rows affected by each cleaning rule](reports/figures/02_cleaning_rules.png)
+
+| Issue found | Example | Rule | Action |
+|---|---|---|---|
+| Holidays and missing days filled with an old price (zero volume) | Christmas, 1 May, Good Friday | `stale_bar` | Row dropped |
+| Frozen early history | Shell before the July 2005 unification: no trade on >90% of days in 2000 | `before_valid_from` | Rows dropped (`valid_from` in `universe.csv`) |
+| Isolated bad prints that revert the next day | Novo Nordisk: 33 prices 2-5x away from their neighbours | `price_spike` | Row dropped |
+| Open or close outside the [low, high] range | Mostly before 2005 | `range_repair` | Range widened |
+| Close-only bars (open = high = low = close) | FTSE MIB until 2003, Vodafone until 2002 | `close_only_bar` | Open/high/low set to NULL |
+| Negative adjusted close | AB InBev 2000-2008, Inditex 2001-2002 | `invalid_adj_close` | Set to NULL |
+| Session still trading when downloaded | Data downloaded during market hours | `incomplete_session` | Row dropped |
+
+Only **1.1% of rows are dropped**. Genuine extreme moves are kept, e.g. ABB's -62% on 22 Oct 2002 (asbestos crisis) or Rio Tinto's -37% on 25 Nov 2008. The spike filter only removes prices that immediately revert.
+
+Why it matters: a handful of bad prints is enough to make volatility estimates meaningless.
+
+![Novo Nordisk: raw vs clean prices and volatility](reports/figures/02_novo_spikes.png)
+
+Design decisions:
+
+- **Returns will be computed from `close`**, which Yahoo adjusts for stock splits. `adj_close` is unreliable (negative values, 25-40% one-day jumps in the adjustment factor) and is kept for reference only.
+- **Database constraints** on `prices_clean` (`close > 0`, `high >= low`, open and close within the range…) guarantee that no inconsistent row can be stored.
+- **Unit tests** ([`tests/test_clean_prices.py`](tests/test_clean_prices.py)) check each rule on synthetic data, including that genuine crashes and VIX spikes are *not* removed.
+
+Known limitations:
 
 - **Survivorship bias:** the universe contains today's large companies, so firms that disappeared (e.g. Credit Suisse) are excluded.
-- **Shorter histories:** some companies were listed, merged or restructured after 2000 (e.g. UBS Group, Shell's unified share line, Mercedes-Benz, Ahold Delhaize).
-- **London prices** are quoted in pence and occasionally switch units on Yahoo, creating artificial 100x jumps.
-- **VIX** closes after European markets, so it must be lagged by one day to avoid look-ahead bias.
+- **Shorter histories:** some series start after 2000 (e.g. Ahold Delhaize, ArcelorMittal, Euro Stoxx 50, OMX Stockholm 30 on Yahoo).
+- **Coarse price ticks in the early 2000s** produce more unchanged-price days (e.g. Equinor), which slightly lowers measured volatility in that period.
+- **VIX** closes after European markets, so it must be lagged by one day when used as a feature (Step 4).
 
 ## Methodology (planned)
 
@@ -136,7 +168,7 @@ european-volatility-forecasting/
 │   └── universe.csv    # list of tickers with country, sector, currency
 ├── sql/
 │   └── schema.sql      # PostgreSQL tables, keys, constraints and views
-├── notebooks/          # exploration, analysis and results
+├── notebooks/          # analysis notebooks (01_data_quality, ...)
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── data/           # database setup, download and cleaning
@@ -171,6 +203,8 @@ Copy `.env.example` to `.env` and enter your PostgreSQL password, then:
 ```bash
 python -m src.data.setup_db      # create database, tables and load the universe
 python -m src.data.fetch_prices  # download all price data into PostgreSQL (~2-3 minutes)
+python -m src.data.clean_prices  # clean the prices (prices_clean + cleaning_log)
+python -m pytest                 # run the unit tests
 ```
 
 Deep learning models (Step 8) need extra packages: `pip install -r requirements-dl.txt` (a GPU, e.g. Google Colab, is recommended).
@@ -181,8 +215,8 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 |---|---|---|
 | 0 | Project setup | ✅ Done |
 | 1 | Data collection | ✅ Done |
-| 2 | Data cleaning and quality checks | ⏳ Next |
-| 3 | Exploratory analysis: stylised facts of volatility | ⬜ |
+| 2 | Data cleaning and quality checks | ✅ Done |
+| 3 | Exploratory analysis: stylised facts of volatility | ⏳ Next |
 | 4 | Volatility targets and feature engineering | ⬜ |
 | 5 | Evaluation framework and baselines | ⬜ |
 | 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ⬜ |
