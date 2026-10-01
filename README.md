@@ -66,19 +66,38 @@ Volatility forecasts are used every day in finance:
 
 **Stocks by sector:** Banks 8 · Health Care 7 · Industrials 7 · Energy 5 · Consumer Staples 5 · Materials 4 · Technology 4 · Consumer Discretionary 3 · Telecom 3 · Insurance 2 · Utilities 2
 
+### Storage: PostgreSQL
+
+All data is stored in a local **PostgreSQL** database (`volatility_db`). The schema is defined in [`sql/schema.sql`](sql/schema.sql):
+
+```
+universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV from Yahoo
+           │
+           └──< download_log >──── download_runs    audit trail of every download
+```
+
+| Table / view | Grain | Content |
+|---|---|---|
+| `universe` | 1 row per ticker | Name, asset type, country, exchange, sector, currency (loaded from `data/universe.csv`) |
+| `prices_raw` | 1 row per ticker and trading day | Open, high, low, close, adjusted close, volume, download timestamp |
+| `download_runs` | 1 row per run | Date range requested, start/end time, tickers and rows downloaded |
+| `download_log` | 1 row per ticker per run | Status, first/last date, years of history, missing values, zero-volume days, suspicious jumps (> 50%) |
+| `latest_download_report` *(view)* | 1 row per ticker | Quality report of the most recent run |
+
 ### Download pipeline
 
-[`src/data/fetch_prices.py`](src/data/fetch_prices.py) downloads every series and saves:
-
-- `data/raw/prices.parquet`: all prices in long format (`date, ticker, open, high, low, close, adj_close, volume`)
-- `data/raw/download_report.csv`: per-ticker status, first and last date, years of history, missing values, zero-volume days and suspicious daily jumps (> 50%)
+1. [`src/data/setup_db.py`](src/data/setup_db.py) creates the database and tables and loads the universe.
+2. [`src/data/fetch_prices.py`](src/data/fetch_prices.py) downloads every series from Yahoo Finance and writes it to `prices_raw`, logging each ticker in `download_log`.
 
 Design choices:
 
-- **Raw data is kept raw.** Prices are stored unadjusted and unfilled, so every cleaning decision is made explicitly and documented in Step 2.
+- **Raw data is kept raw.** Prices are stored unadjusted and unfilled, and `prices_raw` deliberately has no sanity constraints (e.g. `high >= low`): wrong values must be stored so they can be detected, logged and fixed in Step 2.
+- **Idempotent loads.** Prices are written with an *upsert* (`INSERT ... ON CONFLICT DO UPDATE`) on the primary key `(ticker, date)`, so re-running the download updates rows instead of duplicating them.
+- **Referential integrity.** Every price and log row must reference a ticker in `universe` (foreign keys).
+- **Auditability.** Every run and every ticker's outcome is recorded, so data issues can be traced back to a specific download.
 - **Each series keeps its own trading calendar.** European exchanges have different holidays; no artificial rows are created.
 - **Robust downloading.** Each ticker is retried up to 3 times, and a missing ticker does not stop the pipeline.
-- **Raw data is not committed** to the repository (see `.gitignore`); anyone can rebuild it with one command.
+- **Credentials stay local.** Connection settings live in a `.env` file that is never committed (template: [`.env.example`](.env.example)).
 
 Known limitations to address in Step 2:
 
@@ -101,7 +120,8 @@ Known limitations to address in Step 2:
 ## Tech stack
 
 - **Language:** Python
-- **Data:** pandas, NumPy, yfinance, Parquet
+- **Data:** pandas, NumPy, yfinance
+- **Database:** PostgreSQL, SQLAlchemy, psycopg2
 - **Econometrics:** arch, statsmodels
 - **Machine learning:** scikit-learn, LightGBM, Optuna, SHAP
 - **Deep learning:** PyTorch, neuralforecast
@@ -113,23 +133,27 @@ Known limitations to address in Step 2:
 ```
 european-volatility-forecasting/
 ├── data/
-│   ├── universe.csv    # list of tickers with country, sector, currency
-│   ├── raw/            # downloaded price data (not committed)
-│   └── processed/      # cleaned datasets
+│   └── universe.csv    # list of tickers with country, sector, currency
+├── sql/
+│   └── schema.sql      # PostgreSQL tables, keys, constraints and views
 ├── notebooks/          # exploration, analysis and results
 ├── src/
-│   ├── data/           # download and cleaning
+│   ├── db.py           # database connection (reads .env)
+│   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
 │   ├── models/         # baselines, econometric, ML and DL models
 │   └── evaluation/     # walk-forward backtest, loss functions, tests
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
 ├── app/                # Streamlit dashboard
+├── .env.example        # template for database credentials
 ├── requirements.txt
 └── requirements-dl.txt # deep learning dependencies
 ```
 
 ## Getting started
+
+**Prerequisites:** Python 3.10+ and [PostgreSQL](https://www.postgresql.org/download/) running locally.
 
 ```bash
 git clone https://github.com/vinhdang111/european-volatility-forecasting.git
@@ -140,8 +164,13 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
 pip install -e .                 # makes `src` importable from notebooks
+```
 
-python -m src.data.fetch_prices  # download all price data (~1-2 minutes)
+Copy `.env.example` to `.env` and enter your PostgreSQL password, then:
+
+```bash
+python -m src.data.setup_db      # create database, tables and load the universe
+python -m src.data.fetch_prices  # download all price data into PostgreSQL (~2-3 minutes)
 ```
 
 Deep learning models (Step 8) need extra packages: `pip install -r requirements-dl.txt` (a GPU, e.g. Google Colab, is recommended).
