@@ -137,6 +137,7 @@ Known limitations:
 - **Shorter histories:** some series start after 2000 (e.g. Ahold Delhaize, ArcelorMittal, Euro Stoxx 50, OMX Stockholm 30 on Yahoo).
 - **Coarse price ticks in the early 2000s** produce more unchanged-price days (e.g. Equinor), which slightly lowers measured volatility in that period.
 - **VIX** closes after European markets, so it must be lagged by one day when used as a feature (Step 4).
+- **VSTOXX**, the European equivalent of the VIX, would be the closer match for European stocks, but it is not available on Yahoo Finance and has no free, automatable source, so the project uses the VIX as its implied-volatility feature.
 
 ## Methodology (planned)
 
