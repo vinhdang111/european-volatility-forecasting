@@ -139,6 +139,32 @@ Known limitations:
 - **VIX** closes after European markets, so it must be lagged by one day when used as a feature (Step 4).
 - **VSTOXX**, the European equivalent of the VIX, would be the closer match for European stocks, but it is not available on Yahoo Finance and has no free, automatable source, so the project uses the VIX as its implied-volatility feature.
 
+## Key findings from the exploratory analysis
+
+[`notebooks/02_eda.ipynb`](notebooks/02_eda.ipynb) checks the *stylised facts* that volatility models rely on, using 331,000 daily stock returns (2000 to September 2026). Each finding drives a design choice in the following steps.
+
+**Volatility moves between calm regimes and short, violent crises.** The volatility of the median stock ranges from 12% to 101% (3 November 2008). It averaged 40% during the financial crisis and 51% during COVID-19, against 22% outside the shaded periods.
+
+![21-day volatility of 50 European stocks](reports/figures/03_volatility_regimes.png)
+
+**Volatility is forecastable, returns are not.** Daily returns have no memory (autocorrelation ≈ 0), but their size does: the autocorrelation of absolute returns is 0.23 at one day and still 0.09 after 100 days.
+
+![Autocorrelation of returns and absolute returns](reports/figures/03_volatility_clustering.png)
+
+**Falls raise volatility more than rises.** After a drop of more than 4%, volatility over the next five days averages 54%, against 48% after a rise of the same size.
+
+![Leverage effect](reports/figures/03_leverage_effect.png)
+
+| Finding | Evidence | Consequence for the project |
+|---|---|---|
+| Fat tails | Moves beyond 5 standard deviations are about 4,700 times more frequent than under a normal distribution | Robust loss function (QLIKE); VaR backtesting |
+| Clustering and long memory | Absolute returns stay autocorrelated for 100+ days | HAR (day / week / month) as the benchmark to beat |
+| Regimes | Median-stock volatility between 12% and 101% | Results reported separately for calm and crisis periods |
+| Leverage effect | Falls are followed by more volatility than rises | Negative-return features; GJR-GARCH |
+| Skewness | Skewness 3.1 for volatility, 0.5 for its logarithm | Models forecast log volatility |
+| Co-movement | Average correlation of 0.87 between index volatilities; lagged VIX as informative as an index's own past volatility | One pooled model for all series; VIX feature tested by ablation |
+| Sector levels | From 23% (consumer staples) to 43% (technology) | Per-series scaling or sector features |
+
 ## Methodology (planned)
 
 | Level | Models |
@@ -169,9 +195,10 @@ european-volatility-forecasting/
 │   └── universe.csv    # list of tickers with country, sector, currency
 ├── sql/
 │   └── schema.sql      # PostgreSQL tables, keys, constraints and views
-├── notebooks/          # analysis notebooks (01_data_quality, ...)
+├── notebooks/          # 01_data_quality, 02_eda, ...
 ├── src/
 │   ├── db.py           # database connection (reads .env)
+│   ├── viz.py          # shared chart style
 │   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
 │   ├── models/         # baselines, econometric, ML and DL models
@@ -217,8 +244,8 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 | 0 | Project setup | ✅ Done |
 | 1 | Data collection | ✅ Done |
 | 2 | Data cleaning and quality checks | ✅ Done |
-| 3 | Exploratory analysis: stylised facts of volatility | ⏳ Next |
-| 4 | Volatility targets and feature engineering | ⬜ |
+| 3 | Exploratory analysis: stylised facts of volatility | ✅ Done |
+| 4 | Volatility targets and feature engineering | ⏳ Next |
 | 5 | Evaluation framework and baselines | ⬜ |
 | 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ⬜ |
 | 7 | Machine learning (LightGBM, SHAP) | ⬜ |
