@@ -23,6 +23,7 @@ def make_prices(closes, ticker="TEST.PA", asset_type="stock", volume=1_000, star
         "volume": float(volume),
         "asset_type": asset_type,
         "valid_from": pd.NaT,
+        "range_valid_from": pd.NaT,
         "download_day": dates[-1] + pd.Timedelta(days=30),
     })
 
@@ -98,6 +99,51 @@ def test_range_is_repaired_when_close_is_outside():
     row = prices.loc[3]
     assert row["high"] == row["close"]
     assert len(rules_applied(log, "range_repair")) == 1
+
+
+def test_unit_error_in_low_drops_the_range_but_keeps_the_close():
+    raw = make_prices(np.linspace(100, 110, 10))
+    raw.loc[4, "low"] = raw.loc[4, "low"] / 100            # low quoted in pounds instead of pence
+    prices, log = clean(raw)
+    assert prices.loc[4, ["open", "high", "low"]].isna().all()
+    assert prices.loc[4, "close"] == raw.loc[4, "close"]
+    assert len(rules_applied(log, "implausible_range")) == 1
+
+
+def test_bad_high_print_drops_the_range():
+    raw = make_prices(np.linspace(100, 110, 10))
+    raw.loc[4, "high"] = raw.loc[4, "close"] * 1.30         # 30% above both open and close
+    prices, log = clean(raw)
+    assert prices.loc[4, ["open", "high", "low"]].isna().all()
+    assert len(rules_applied(log, "implausible_range")) == 1
+
+
+def test_genuine_intraday_crash_keeps_its_range():
+    raw = make_prices([100.0] * 4 + [72.0] * 6)              # the price stays down after the crash
+    raw.loc[4, ["open", "high"]] = [100.0, 101.0]            # crash day: opens at 100 ...
+    raw.loc[4, ["low", "close"]] = [72.0, 72.0]              # ... and closes 28% lower, at the low
+    prices, log = clean(raw)
+    assert prices.loc[4, "low"] == 72.0
+    assert prices.loc[4, "high"] == 101.0
+    assert rules_applied(log, "implausible_range").empty
+
+
+def test_implausible_range_rule_is_not_applied_to_vix():
+    raw = make_prices([15.0] * 10, ticker="^VIX", asset_type="external", volume=0)
+    raw.loc[4, "high"] = 22.0                                # intraday spike, back down by the close
+    prices, log = clean(raw)
+    assert prices.loc[4, "high"] == 22.0
+    assert rules_applied(log, "implausible_range").empty
+
+
+def test_range_before_range_valid_from_is_discarded():
+    raw = make_prices(np.linspace(100, 110, 10))
+    raw["range_valid_from"] = raw["date"].iloc[6]
+    prices, log = clean(raw)
+    assert prices.loc[:5, "high"].isna().all()
+    assert prices.loc[6:, "high"].notna().all()
+    assert len(prices) == 10                                 # closes are all kept
+    assert len(rules_applied(log, "unreliable_range")) == 6
 
 
 def test_close_only_bar_gets_null_range():

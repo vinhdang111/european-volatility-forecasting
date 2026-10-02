@@ -15,12 +15,15 @@ CREATE TABLE IF NOT EXISTS universe (
     sector      TEXT,                          -- NULL for indices and VIX
     currency    TEXT NOT NULL,                 -- 'GBp' = pence (London listings)
     valid_from  DATE,                          -- ignore earlier data (unreliable history)
+    range_valid_from DATE,                     -- ignore earlier open/high/low (close still used)
     note        TEXT,
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Added in Step 2 (keeps databases created in Step 1 up to date)
 ALTER TABLE universe ADD COLUMN IF NOT EXISTS valid_from DATE;
+-- Added in Step 4
+ALTER TABLE universe ADD COLUMN IF NOT EXISTS range_valid_from DATE;
 
 -- ---------------------------------------------------------------------
 -- 2. Raw prices: exactly as received from Yahoo Finance.
@@ -170,3 +173,79 @@ JOIN (SELECT ticker,
              max(date)          AS last_date
       FROM prices_clean GROUP BY ticker) c USING (ticker)
 ORDER BY n_dropped DESC, u.ticker;
+
+-- =====================================================================
+-- Step 4: modelling dataset
+-- Rebuilt from prices_clean by `python -m src.features.build_features`.
+-- A row dated t contains what is known at the close of day t (features)
+-- and what happens afterwards (targets).
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 8. Features and targets: one row per stock / index and trading day
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS features (
+    ticker            TEXT NOT NULL REFERENCES universe (ticker),
+    date              DATE NOT NULL,
+
+    -- Daily variance (decimal units) and how it was measured
+    rv                DOUBLE PRECISION,
+    rv_source         TEXT CHECK (rv_source IN ('range', 'close')),
+
+    -- Own volatility: day, week, month, quarter, long-run level (logs of daily variance)
+    log_rv_d          DOUBLE PRECISION,
+    log_rv_w          DOUBLE PRECISION,
+    log_rv_m          DOUBLE PRECISION,
+    log_rv_q          DOUBLE PRECISION,
+    log_rv_lt         DOUBLE PRECISION,
+
+    -- Returns and leverage effect
+    ret_d             DOUBLE PRECISION,
+    ret_w             DOUBLE PRECISION,
+    ret_m             DOUBLE PRECISION,
+    neg_ret_d         DOUBLE PRECISION,
+    down_share_m      DOUBLE PRECISION,
+
+    -- Instability of volatility, trading activity
+    vol_of_vol_m      DOUBLE PRECISION,
+    log_volume_ratio  DOUBLE PRECISION,
+
+    -- Market-wide volatility (median European stock)
+    mkt_log_rv_d      DOUBLE PRECISION,
+    mkt_log_rv_w      DOUBLE PRECISION,
+    mkt_log_rv_m      DOUBLE PRECISION,
+
+    -- VIX of the last US session strictly before `date`
+    log_vix           DOUBLE PRECISION,
+    vix_chg_5d        DOUBLE PRECISION,
+
+    -- Calendar: 0 = Monday ... 4 = Friday
+    dow               SMALLINT CHECK (dow BETWEEN 0 AND 6),
+
+    -- Targets: log of the average daily variance over the next 1 / 5 / 22 trading days
+    target_1d         DOUBLE PRECISION,
+    target_5d         DOUBLE PRECISION,
+    target_22d        DOUBLE PRECISION,
+
+    PRIMARY KEY (ticker, date),
+    CONSTRAINT positive_rv CHECK (rv IS NULL OR rv > 0),
+    CONSTRAINT down_share_is_a_share CHECK (down_share_m IS NULL OR down_share_m BETWEEN 0 AND 1)
+);
+
+-- ---------------------------------------------------------------------
+-- 9. View: features joined with the static attributes of each series,
+--    plus volatility expressed as an annualised percentage for reporting
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE VIEW model_dataset AS
+SELECT f.*,
+       u.name,
+       u.asset_type,
+       u.country,
+       u.sector,
+       sqrt(f.rv * 252) * 100              AS vol_d_pct,
+       sqrt(exp(f.log_rv_m) * 252) * 100   AS vol_m_pct,
+       sqrt(exp(f.target_1d) * 252) * 100  AS target_1d_vol_pct,
+       sqrt(exp(f.target_5d) * 252) * 100  AS target_5d_vol_pct,
+       sqrt(exp(f.target_22d) * 252) * 100 AS target_22d_vol_pct
+FROM features f
+JOIN universe u USING (ticker);
