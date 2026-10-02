@@ -74,6 +74,7 @@ All data is stored in a local **PostgreSQL** database (`volatility_db`). The sch
 universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV from Yahoo
            ├──< prices_clean        (ticker, date)  cleaned prices (Step 2)
            ├──< cleaning_log                        every correction made (Step 2)
+           ├──< features            (ticker, date)  daily variance, features, targets (Step 4)
            └──< download_log >──── download_runs    audit trail of every download
 ```
 
@@ -87,6 +88,8 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `prices_clean` | 1 row per ticker and trading day | Cleaned prices, with sanity constraints (Step 2) |
 | `cleaning_log` | 1 row per change | Ticker, date, rule, action and detail of every correction (Step 2) |
 | `cleaning_summary`, `data_coverage` *(views)* | 1 row per rule / ticker | Summary of the cleaning; rows kept and dropped per ticker |
+| `features` | 1 row per stock / index and trading day | Daily variance, 18 features and 3 forecast targets (Step 4) |
+| `model_dataset` *(view)* | 1 row per stock / index and trading day | `features` joined with sector, country and asset type, plus volatilities in % |
 
 ### Download pipeline
 
@@ -105,7 +108,7 @@ Design choices:
 
 ## Data quality
 
-Raw Yahoo Finance data contains several kinds of errors. [`src/data/clean_prices.py`](src/data/clean_prices.py) rebuilds `prices_clean` from `prices_raw` with seven documented rules, and records **every change** (ticker, date, rule, action, detail) in the `cleaning_log` table. The full investigation is in [`notebooks/01_data_quality.ipynb`](notebooks/01_data_quality.ipynb).
+Raw Yahoo Finance data contains several kinds of errors. [`src/data/clean_prices.py`](src/data/clean_prices.py) rebuilds `prices_clean` from `prices_raw` with nine documented rules, and records **every change** (ticker, date, rule, action, detail) in the `cleaning_log` table. The full investigation is in [`notebooks/01_data_quality.ipynb`](notebooks/01_data_quality.ipynb).
 
 ![Rows affected by each cleaning rule](reports/figures/02_cleaning_rules.png)
 
@@ -114,6 +117,8 @@ Raw Yahoo Finance data contains several kinds of errors. [`src/data/clean_prices
 | Holidays and missing days filled with an old price (zero volume) | Christmas, 1 May, Good Friday | `stale_bar` | Row dropped |
 | Frozen early history | Shell before the July 2005 unification: no trade on >90% of days in 2000 | `before_valid_from` | Rows dropped (`valid_from` in `universe.csv`) |
 | Isolated bad prints that revert the next day | Novo Nordisk: 33 prices 2-5x away from their neighbours | `price_spike` | Row dropped |
+| Intraday prices on a different basis than the close | Vodafone before mid-2007: range-based volatility 10 to 100 times too high | `unreliable_range` | Open/high/low set to NULL (`range_valid_from` in `universe.csv`) |
+| Impossible high or low | Shell and BP in 2019: low quoted in pounds instead of pence; bad prints 15%+ beyond both open and close | `implausible_range` | Open/high/low set to NULL |
 | Open or close outside the [low, high] range | Mostly before 2005 | `range_repair` | Range widened |
 | Close-only bars (open = high = low = close) | FTSE MIB until 2003, Vodafone until 2002 | `close_only_bar` | Open/high/low set to NULL |
 | Negative adjusted close | AB InBev 2000-2008, Inditex 2001-2002 | `invalid_adj_close` | Set to NULL |
@@ -165,6 +170,35 @@ Known limitations:
 | Co-movement | Average correlation of 0.87 between index volatilities; lagged VIX as informative as an index's own past volatility | One pooled model for all series; VIX feature tested by ablation |
 | Sector levels | From 23% (consumer staples) to 43% (technology) | Per-series scaling or sector features |
 
+## Volatility measure, targets and features
+
+Details and checks in [`notebooks/03_features.ipynb`](notebooks/03_features.ipynb); code in [`src/features/`](src/features/).
+
+**Measure.** Volatility on a single day cannot be observed. The squared daily return is unbiased but extremely noisy, so the project measures daily variance from the full open/high/low/close information:
+
+> `rv` = (overnight return)² + Garman-Klass variance of the trading session
+
+with a fallback to the squared close-to-close return when the intraday range is missing (0.9% of rows). The range-based measure has the same average level as the close-to-close one (33% against 32% annualised for stocks) but is far less noisy: its day-to-day autocorrelation is 0.58, against 0.15 for squared returns.
+
+![Two measures of daily volatility during the COVID-19 crash](reports/figures/04_volatility_estimators.png)
+
+**Targets.** For each horizon of 1, 5 and 22 trading days: the logarithm of the average daily variance over the following *h* days.
+
+**Features.** 18 variables, each motivated by a finding of the exploratory analysis:
+
+| Group | Features | Motivation |
+|---|---|---|
+| Own volatility | Day, week, month, quarter, long-run level | Clustering and long memory (the first three form the HAR model) |
+| Returns | Daily, weekly, monthly return; negative return; share of variance from down days | Leverage effect |
+| Instability, activity | Volatility of volatility; volume relative to its monthly average | Unstable or unusually active markets |
+| Market | Volatility of the median European stock (day, week, month) | Co-movement across markets |
+| Implied volatility | VIX level and 5-day change, lagged one US session | Forward-looking expectations |
+| Calendar | Day of the week | Seasonality |
+
+The final dataset has **371,839 complete rows** (59 series, December 2000 to August 2026).
+
+**No look-ahead.** A row dated *t* contains only what is known at the close of day *t*; targets use days *t+1* onwards. This is enforced by unit tests ([`tests/test_features.py`](tests/test_features.py)): the features are rebuilt on data truncated at a date *T* and must be identical to the full-sample features up to *T*, and changing today's prices must leave today's targets unchanged. The VIX is taken from the last US session strictly before *t*, because the US market closes after Europe.
+
 ## Methodology (planned)
 
 | Level | Models |
@@ -195,7 +229,7 @@ european-volatility-forecasting/
 │   └── universe.csv    # list of tickers with country, sector, currency
 ├── sql/
 │   └── schema.sql      # PostgreSQL tables, keys, constraints and views
-├── notebooks/          # 01_data_quality, 02_eda, ...
+├── notebooks/          # 01_data_quality, 02_eda, 03_features, ...
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── viz.py          # shared chart style
@@ -232,6 +266,7 @@ Copy `.env.example` to `.env` and enter your PostgreSQL password, then:
 python -m src.data.setup_db      # create database, tables and load the universe
 python -m src.data.fetch_prices  # download all price data into PostgreSQL (~2-3 minutes)
 python -m src.data.clean_prices  # clean the prices (prices_clean + cleaning_log)
+python -m src.features.build_features  # daily variance, features and targets
 python -m pytest                 # run the unit tests
 ```
 
@@ -245,8 +280,8 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 | 1 | Data collection | ✅ Done |
 | 2 | Data cleaning and quality checks | ✅ Done |
 | 3 | Exploratory analysis: stylised facts of volatility | ✅ Done |
-| 4 | Volatility targets and feature engineering | ⏳ Next |
-| 5 | Evaluation framework and baselines | ⬜ |
+| 4 | Volatility targets and feature engineering | ✅ Done |
+| 5 | Evaluation framework and baselines | ⏳ Next |
 | 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ⬜ |
 | 7 | Machine learning (LightGBM, SHAP) | ⬜ |
 | 8 | Deep learning (LSTM, transformer) | ⬜ |

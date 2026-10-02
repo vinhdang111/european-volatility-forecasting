@@ -22,8 +22,8 @@ UNIVERSE_PATH = PROJECT_ROOT / "data" / "universe.csv"
 logger = logging.getLogger(__name__)
 
 UPSERT_UNIVERSE = text("""
-    INSERT INTO universe (ticker, name, asset_type, country, exchange, sector, currency, valid_from, note, updated_at)
-    VALUES (:ticker, :name, :asset_type, :country, :exchange, :sector, :currency, :valid_from, :note, now())
+    INSERT INTO universe (ticker, name, asset_type, country, exchange, sector, currency, valid_from, range_valid_from, note, updated_at)
+    VALUES (:ticker, :name, :asset_type, :country, :exchange, :sector, :currency, :valid_from, :range_valid_from, :note, now())
     ON CONFLICT (ticker) DO UPDATE SET
         name       = EXCLUDED.name,
         asset_type = EXCLUDED.asset_type,
@@ -32,6 +32,7 @@ UPSERT_UNIVERSE = text("""
         sector     = EXCLUDED.sector,
         currency   = EXCLUDED.currency,
         valid_from = EXCLUDED.valid_from,
+        range_valid_from = EXCLUDED.range_valid_from,
         note       = EXCLUDED.note,
         updated_at = now()
 """)

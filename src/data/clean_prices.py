@@ -21,11 +21,23 @@ Every rule was designed from issues actually found in the Yahoo Finance data
                        from BOTH the median of the 5 previous and the 5 next
                        closes (a spike that immediately reverts). Real crashes
                        persist and are kept. Not applied to the VIX.
-5. range_repair        widen high/low when the open or close lies outside the
+5. unreliable_range    set open/high/low to NULL before the ticker's
+                       `range_valid_from` date (set in data/universe.csv when
+                       the early intraday data is on a different price basis
+                       than the close, e.g. Vodafone before mid-2007).
+6. implausible_range   set open/high/low to NULL when the bar cannot be real:
+                       high more than twice the low (unit errors such as a low
+                       quoted in pounds instead of pence), or a high / low more
+                       than 15% beyond both the open and the close (bad print).
+                       Not applied to the VIX, where such swings are genuine.
+7. range_repair        widen high/low when the open or close lies outside the
                        reported [low, high] range.
-6. close_only_bar      set open/high/low to NULL when open = high = low = close
+8. close_only_bar      set open/high/low to NULL when open = high = low = close
                        (the source only provided a closing price).
-7. invalid_adj_close   set adj_close to NULL when it is zero or negative.
+9. invalid_adj_close   set adj_close to NULL when it is zero or negative.
+
+Rules 5, 6 and 8 keep the close: only the intraday range is discarded, and
+range-based volatility estimators fall back to close-to-close returns.
 
 Volume is set to NULL (not logged) for indices and the VIX, where Yahoo does
 not report a meaningful volume.
@@ -48,6 +60,8 @@ from src.db import get_engine
 SPIKE_THRESHOLD = 1.4     # 40% away from both neighbouring medians
 SPIKE_WINDOW = 5          # trading days on each side
 SPIKE_MAX_PASSES = 5      # repeat until no new spike is found
+MAX_HIGH_LOW_RATIO = 2.0  # high more than twice the low: unit or adjustment error
+MAX_WICK = 1.15           # high (low) more than 15% beyond both open and close
 
 PRICE_COLUMNS = ["open", "high", "low", "close", "adj_close", "volume"]
 LOG_COLUMNS = ["ticker", "date", "rule", "action", "detail"]
@@ -132,6 +146,31 @@ def drop_price_spikes(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return df, log
 
 
+def null_unreliable_ranges(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    df = df.copy()
+    has_range = df[["open", "high", "low"]].notna().all(axis=1)
+    mask = has_range & df["range_valid_from"].notna() & (df["date"] < df["range_valid_from"])
+    detail = "before range_valid_from " + df.loc[mask, "range_valid_from"].dt.strftime("%Y-%m-%d").astype(object)
+    log = _log(df[mask], "unreliable_range", "set_null", detail)
+    df.loc[mask, ["open", "high", "low"]] = np.nan
+    return df, log
+
+
+def null_implausible_ranges(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    df = df.copy()
+    body_top = df[["open", "close"]].max(axis=1)
+    body_bottom = df[["open", "close"]].min(axis=1)
+    high_low = df["high"] / df["low"]
+    wick = np.maximum(df["high"] / body_top, body_bottom / df["low"])
+    mask = ((high_low > MAX_HIGH_LOW_RATIO) | (wick > MAX_WICK)) & (df["asset_type"] != "external")
+
+    detail = ("open " + df.loc[mask, "open"].pipe(_fmt) + ", high " + df.loc[mask, "high"].pipe(_fmt)
+              + ", low " + df.loc[mask, "low"].pipe(_fmt) + ", close " + df.loc[mask, "close"].pipe(_fmt))
+    log = _log(df[mask], "implausible_range", "set_null", detail)
+    df.loc[mask, ["open", "high", "low"]] = np.nan
+    return df, log
+
+
 def repair_ranges(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     df = df.copy()
     has_range = df[["open", "high", "low"]].notna().all(axis=1)
@@ -169,6 +208,8 @@ RULES = [
     drop_incomplete_sessions,
     drop_stale_bars,
     drop_price_spikes,
+    null_unreliable_ranges,
+    null_implausible_ranges,
     repair_ranges,
     null_close_only_bars,
     null_invalid_adj_close,
@@ -178,8 +219,8 @@ RULES = [
 def clean(raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Apply all rules in order. Pure function: no database access.
 
-    `raw` needs the prices_raw columns plus `asset_type`, `valid_from` and
-    `download_day` (all three come from load_raw).
+    `raw` needs the prices_raw columns plus `asset_type`, `valid_from`,
+    `range_valid_from` and `download_day` (all provided by load_raw).
     Returns (clean prices, cleaning log).
     """
     df = raw.sort_values(["ticker", "date"]).reset_index(drop=True)
@@ -202,6 +243,7 @@ LOAD_RAW = """
     SELECT p.ticker, p.date, p.open, p.high, p.low, p.close, p.adj_close, p.volume,
            u.asset_type,
            u.valid_from,
+           u.range_valid_from,
            (p.downloaded_at AT TIME ZONE 'Europe/Paris')::date AS download_day
     FROM prices_raw p
     JOIN universe u USING (ticker)
@@ -209,7 +251,7 @@ LOAD_RAW = """
 
 
 def load_raw(engine: Engine) -> pd.DataFrame:
-    df = pd.read_sql(LOAD_RAW, engine, parse_dates=["date", "valid_from", "download_day"])
+    df = pd.read_sql(LOAD_RAW, engine, parse_dates=["date", "valid_from", "range_valid_from", "download_day"])
     logger.info("Loaded %d raw rows for %d tickers", len(df), df["ticker"].nunique())
     return df
 
