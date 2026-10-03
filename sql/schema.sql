@@ -310,3 +310,21 @@ FROM model_scores s
 JOIN models m USING (model)
 GROUP BY s.horizon, s.model, m.family
 ORDER BY s.horizon, rank_qlike;
+
+-- =====================================================================
+-- Step 6: estimated parameters
+-- ---------------------------------------------------------------------
+-- 12. Parameters of every model that estimates some, for each walk-forward
+--     fit: `train_end` is the last day of the training window, `series` is
+--     a ticker, or 'ALL' for a model pooled over all series.
+--     Examples: GARCH alpha / beta / persistence per ticker, HAR coefficients.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS model_parameters (
+    model      TEXT NOT NULL REFERENCES models (model),
+    horizon    SMALLINT NOT NULL,
+    train_end  DATE NOT NULL,
+    series     TEXT NOT NULL,
+    parameter  TEXT NOT NULL,
+    value      DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (model, horizon, train_end, series, parameter)
+);
