@@ -77,6 +77,7 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
            ├──< features            (ticker, date)  daily variance, features, targets (Step 4)
            ├──< forecasts           (horizon, ticker, date)  out-of-sample forecasts, one column per model (Step 5)
            ├──< model_scores >───── models          losses per model, horizon, ticker and test year (Step 5)
+           │                        models ──< model_parameters   estimated parameters of every fit (Step 6)
            └──< download_log >──── download_runs    audit trail of every download
 ```
 
@@ -97,6 +98,7 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `models` | 1 row per model | Model name, family and description |
 | `model_scores` | 1 row per model, horizon, ticker and test year | QLIKE, log MSE and MAE, computed in SQL on the common sample ([`sql/score_models.sql`](sql/score_models.sql)) |
 | `model_scores_overall` *(view)* | 1 row per model and horizon | Overall losses and rank of each model |
+| `model_parameters` | 1 row per model, horizon, fit, series and parameter | Estimated parameters of every walk-forward fit: GARCH α, β, γ per series, HAR coefficients (Step 6) |
 
 ### Download pipeline
 
@@ -247,13 +249,59 @@ Out-of-sample QLIKE, 2006 to 2026, about 307,000 forecasts per model and horizon
 
 Simple averages only react **after** volatility has risen and stay too high once markets calm down. Reacting faster in both directions is what the models of the next steps must achieve.
 
+## Econometric models
+
+Four models with **estimated** parameters, re-estimated for every test year. Details in [`notebooks/05_econometric_models.ipynb`](notebooks/05_econometric_models.ipynb); code in [`src/models/garch.py`](src/models/garch.py) and [`src/models/har.py`](src/models/har.py).
+
+| Model | Input | Estimation |
+|---|---|---|
+| GARCH(1,1) | Daily returns | Maximum likelihood, one model per series |
+| GJR-GARCH | Daily returns | Same, with a stronger reaction to negative returns (leverage effect) |
+| HAR | Range-based variance of the last day, week and month | Pooled linear regression (one for all series) |
+| HAR-X | HAR + the 14 other features of Step 4 (leverage, market volatility, VIX…) | Pooled linear regression |
+
+Out-of-sample QLIKE, 2006 to 2026, same sample as the baselines (lower is better):
+
+| Model | 1 day | 5 days | 22 days |
+|---|---|---|---|
+| **HAR-X** | **0.378** | **0.220** | **0.199** |
+| HAR | 0.400 | 0.242 | 0.212 |
+| GJR-GARCH | 0.431 | 0.262 | 0.222 |
+| GARCH(1,1) | 0.441 | 0.271 | 0.226 |
+| *EWMA (best baseline)* | *0.440* | *0.273* | *0.250* |
+
+![Out-of-sample QLIKE of all models](reports/figures/06_model_scores.png)
+
+- **HAR-X is the model to beat:** it lowers QLIKE by 14% (1 day) to 20% (22 days) compared with the best baseline, with an average error of 6.4 volatility points at the 5-day horizon (7.1 for EWMA). It is the best model in calm and in crisis periods, for stocks and for indices.
+- **Measurement is worth as much as modelling.** At the 5-day horizon, estimating the weights lowers QLIKE by 11 to 14%, and so does replacing squared returns by the range-based variance. As a result GARCH, an estimated model fed with squared returns, is only as accurate as EWMA, a fixed rule fed with the range-based variance (0.271 against 0.273).
+
+  | QLIKE, 5 days | Fixed weights | Estimated weights |
+  |---|---|---|
+  | Squared returns | RiskMetrics 0.317 | GARCH 0.271 |
+  | Range-based variance | EWMA 0.273 | HAR 0.242 |
+
+- **The leverage effect is confirmed.** In GJR-GARCH, a fall moves the variance more than twice as much as a rise for 90% of the series; starting from a volatility of 20%, a 6% fall takes the next day's volatility to 36%, a 6% rise to 24%.
+
+![Volatility expected tomorrow after today's return](reports/figures/06_news_impact.png)
+
+- **The further the horizon, the more the last month matters:** in HAR, its weight goes from 0.36 (1-day forecast) to 0.48 (22-day forecast), while the weight of the last day falls from 0.22 to 0.11.
+- **A model of the log variance needs a correction to forecast the variance.** The exponential of a predicted logarithm is a forecast of the median, which under-predicts risk by about 20% on average. Multiplying by a correction factor estimated in training (Duan's smearing estimator) lowers the 5-day QLIKE of HAR from 0.267 to 0.242.
+
+![Forecasts during the COVID-19 crash](reports/figures/06_forecast_example.png)
+
+Implementation notes:
+
+- GARCH is implemented from scratch (NumPy / SciPy) so that every step is visible, and tested on simulated data and against the `arch` package ([`tests/test_garch.py`](tests/test_garch.py)).
+- Series with less than two years of returns borrow the typical dynamics of the other series and keep their own variance level.
+- Known limitation: for **indices**, GARCH and HAR forecasts are 12 to 15% too high on average (GARCH because close-to-close returns are more volatile than the range-based target, HAR because one regression serves all series). HAR-X, which knows each series' long-run level, reduces this to 5%.
+
 ## Methodology (next steps)
 
 | Level | Models | Status |
 |---|---|---|
 | Baselines | Naive, monthly average, historical mean, EWMA, RiskMetrics | ✅ |
-| Econometrics | GARCH(1,1), GJR-GARCH, HAR-RV | Step 6 |
-| Machine learning | LightGBM (per-stock and pooled) | Step 7 |
+| Econometrics | GARCH(1,1), GJR-GARCH, HAR, HAR-X | ✅ |
+| Machine learning | LightGBM, compared with the linear HAR-X on the same features | Step 7 |
 | Deep learning | LSTM / GRU, PatchTST or TFT | Step 8 |
 
 **Further evaluation:** Diebold-Mariano tests, regime analysis, ablation studies, and VaR backtesting with the Kupiec test.
@@ -263,7 +311,7 @@ Simple averages only react **after** volatility has risen and stay too high once
 - **Language:** Python
 - **Data:** pandas, NumPy, yfinance
 - **Database:** PostgreSQL, SQLAlchemy, psycopg2
-- **Econometrics:** arch, statsmodels
+- **Econometrics:** GARCH maximum likelihood with SciPy (checked against `arch`), HAR regressions with NumPy
 - **Machine learning:** scikit-learn, LightGBM, Optuna, SHAP
 - **Deep learning:** PyTorch, neuralforecast
 - **Results tracking and testing:** forecasts and scores stored in PostgreSQL, pytest
@@ -278,13 +326,13 @@ european-volatility-forecasting/
 ├── sql/
 │   ├── schema.sql      # PostgreSQL tables, keys, constraints and views
 │   └── score_models.sql  # loss functions computed in SQL from the stored forecasts
-├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, ...
+├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, ...
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── viz.py          # shared chart style
 │   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
-│   ├── models/         # common model interface, baselines (then econometric, ML, DL)
+│   ├── models/         # common model interface, baselines, GARCH, HAR (then ML, DL)
 │   └── evaluation/     # walk-forward splits, backtest, loss functions, storage of results
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
@@ -317,6 +365,7 @@ python -m src.data.fetch_prices  # download all price data into PostgreSQL (~2-3
 python -m src.data.clean_prices  # clean the prices (prices_clean + cleaning_log)
 python -m src.features.build_features  # daily variance, features and targets
 python -m src.models.run_baselines     # walk-forward backtest of the baselines (forecasts + scores)
+python -m src.models.run_econometric   # GARCH, GJR-GARCH, HAR, HAR-X (a few minutes)
 python -m pytest                 # run the unit tests
 ```
 
@@ -332,8 +381,8 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 | 3 | Exploratory analysis: stylised facts of volatility | ✅ Done |
 | 4 | Volatility targets and feature engineering | ✅ Done |
 | 5 | Evaluation framework and baselines | ✅ Done |
-| 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ⏳ Next |
-| 7 | Machine learning (LightGBM, SHAP) | ⬜ |
+| 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ✅ Done |
+| 7 | Machine learning (LightGBM, SHAP) | ⏳ Next |
 | 8 | Deep learning (LSTM, transformer) | ⬜ |
 | 9 | Model comparison and statistical analysis | ⬜ |
 | 10 | Application: Value-at-Risk backtesting | ⬜ |

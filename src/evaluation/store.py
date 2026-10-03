@@ -137,6 +137,48 @@ def save_forecasts(engine: Engine, predictions: pd.DataFrame, family: str,
     logger.info("Saved %d forecasts (%d rows) for: %s", len(predictions), len(wide), ", ".join(models))
 
 
+PARAMETER_COLUMNS = ["model", "horizon", "train_end", "series", "parameter", "value"]
+
+
+def parameters_long(history: list[dict]) -> pd.DataFrame:
+    """Estimated parameters of every fit, one row per parameter.
+
+    `history` is a model's `history_`: one dict per fit (or per fit and ticker)
+    with the keys model, horizon, train_end, optionally ticker, and one key per
+    parameter. Models pooled over all series get the series 'ALL'.
+    """
+    frame = pd.DataFrame(history)
+    frame["series"] = frame["ticker"] if "ticker" in frame else "ALL"
+    ids = ["model", "horizon", "train_end", "series"]
+    values = [c for c in frame.columns if c not in ids and c != "ticker"]
+    long = frame.melt(id_vars=ids, value_vars=values, var_name="parameter", value_name="value")
+    long["value"] = long["value"].astype(float)
+    return long.dropna(subset=["value"])[PARAMETER_COLUMNS]
+
+
+def save_parameters(engine: Engine, parameters: pd.DataFrame) -> None:
+    """Replace the stored parameters of the models present in `parameters`."""
+    models = sorted(parameters["model"].unique())
+    out = parameters[PARAMETER_COLUMNS].copy()
+    out["train_end"] = pd.to_datetime(out["train_end"]).dt.strftime("%Y-%m-%d")
+    buffer = io.StringIO()
+    out.to_csv(buffer, index=False, header=False, float_format="%.10g")
+    buffer.seek(0)
+
+    raw = engine.raw_connection()
+    try:
+        with raw.cursor() as cur:
+            cur.execute("DELETE FROM model_parameters WHERE model = ANY(%s)", (models,))
+            cur.copy_expert(f"COPY model_parameters ({', '.join(PARAMETER_COLUMNS)}) FROM STDIN WITH (FORMAT csv)", buffer)
+        raw.commit()
+    except Exception:
+        raw.rollback()
+        raise
+    finally:
+        raw.close()
+    logger.info("Saved %d parameter values for: %s", len(out), ", ".join(models))
+
+
 def refresh_scores(engine: Engine) -> None:
     """Recompute model_scores for all stored models (sql/score_models.sql)."""
     sql = (SQL_DIR / "score_models.sql").read_text(encoding="utf-8")
