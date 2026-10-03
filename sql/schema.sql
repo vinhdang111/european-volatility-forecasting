@@ -249,3 +249,64 @@ SELECT f.*,
        sqrt(exp(f.target_22d) * 252) * 100 AS target_22d_vol_pct
 FROM features f
 JOIN universe u USING (ticker);
+
+-- =====================================================================
+-- Step 5: forecasts and model scores
+-- Written by the model runners (e.g. `python -m src.models.run_baselines`).
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 10. Out-of-sample forecasts, one row per horizon, series and day.
+--     Each model adds ONE COLUMN (created by src/evaluation/store.py when
+--     the model is first saved): the forecast, made at the close of `date`,
+--     of the average daily variance over the following `horizon` trading days.
+--     A wide table is about seven times smaller than one row per model.
+--     The view `forecasts_long` (also created by store.py) gives the same
+--     data with one row per model, for scoring and dashboards.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS forecasts (
+    horizon   SMALLINT NOT NULL CHECK (horizon IN (1, 5, 22)),
+    ticker    TEXT NOT NULL REFERENCES universe (ticker),
+    date      DATE NOT NULL,
+    PRIMARY KEY (horizon, ticker, date)
+);
+
+-- Registry of the models that have a column in `forecasts`
+CREATE TABLE IF NOT EXISTS models (
+    model        TEXT PRIMARY KEY,
+    family       TEXT NOT NULL,
+    description  TEXT,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------
+-- 11. Scores: average losses per model, horizon, series and test year,
+--     computed by sql/score_models.sql on the observations that every
+--     model has forecast (common sample).
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS model_scores (
+    model      TEXT NOT NULL REFERENCES models (model),
+    horizon    SMALLINT NOT NULL,
+    ticker     TEXT NOT NULL REFERENCES universe (ticker),
+    test_year  SMALLINT NOT NULL,
+    n          INTEGER NOT NULL,
+    qlike      DOUBLE PRECISION NOT NULL,
+    log_mse    DOUBLE PRECISION NOT NULL,
+    mae_vol    DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (model, horizon, ticker, test_year)
+);
+
+-- Overall ranking of the models at each horizon
+CREATE OR REPLACE VIEW model_scores_overall AS
+SELECT s.horizon,
+       s.model,
+       m.family,
+       sum(s.n)                                   AS n_forecasts,
+       sum(s.qlike * s.n) / sum(s.n)              AS qlike,
+       sum(s.log_mse * s.n) / sum(s.n)            AS log_mse,
+       sum(s.mae_vol * s.n) / sum(s.n)            AS mae_vol,
+       rank() OVER (PARTITION BY s.horizon ORDER BY sum(s.qlike * s.n) / sum(s.n)) AS rank_qlike
+FROM model_scores s
+JOIN models m USING (model)
+GROUP BY s.horizon, s.model, m.family
+ORDER BY s.horizon, rank_qlike;

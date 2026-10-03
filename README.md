@@ -75,6 +75,8 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
            ├──< prices_clean        (ticker, date)  cleaned prices (Step 2)
            ├──< cleaning_log                        every correction made (Step 2)
            ├──< features            (ticker, date)  daily variance, features, targets (Step 4)
+           ├──< forecasts           (horizon, ticker, date)  out-of-sample forecasts, one column per model (Step 5)
+           ├──< model_scores >───── models          losses per model, horizon, ticker and test year (Step 5)
            └──< download_log >──── download_runs    audit trail of every download
 ```
 
@@ -90,6 +92,11 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `cleaning_summary`, `data_coverage` *(views)* | 1 row per rule / ticker | Summary of the cleaning; rows kept and dropped per ticker |
 | `features` | 1 row per stock / index and trading day | Daily variance, 18 features and 3 forecast targets (Step 4) |
 | `model_dataset` *(view)* | 1 row per stock / index and trading day | `features` joined with sector, country and asset type, plus volatilities in % |
+| `forecasts` | 1 row per horizon, ticker and forecast date | Out-of-sample variance forecasts, one column per model (Step 5) |
+| `forecasts_long`, `forecast_vs_actual` *(views)* | 1 row per model, horizon, ticker and date | The same forecasts in long format; forecast and realised volatility in % side by side (for Power BI) |
+| `models` | 1 row per model | Model name, family and description |
+| `model_scores` | 1 row per model, horizon, ticker and test year | QLIKE, log MSE and MAE, computed in SQL on the common sample ([`sql/score_models.sql`](sql/score_models.sql)) |
+| `model_scores_overall` *(view)* | 1 row per model and horizon | Overall losses and rank of each model |
 
 ### Download pipeline
 
@@ -199,16 +206,57 @@ The final dataset has **371,839 complete rows** (59 series, December 2000 to Aug
 
 **No look-ahead.** A row dated *t* contains only what is known at the close of day *t*; targets use days *t+1* onwards. This is enforced by unit tests ([`tests/test_features.py`](tests/test_features.py)): the features are rebuilt on data truncated at a date *T* and must be identical to the full-sample features up to *T*, and changing today's prices must leave today's targets unchanged. The VIX is taken from the last US session strictly before *t*, because the US market closes after Europe.
 
-## Methodology (planned)
+## Evaluation framework and baselines
 
-| Level | Models |
-|---|---|
-| Baselines | Naive, historical mean, EWMA (RiskMetrics) |
-| Econometrics | GARCH(1,1), GJR-GARCH, HAR-RV |
-| Machine learning | LightGBM (per-stock and pooled) |
-| Deep learning | LSTM / GRU, PatchTST or TFT |
+Every model of the project is evaluated by the same code, on the same dates and with the same loss functions. Details in [`notebooks/04_baselines.ipynb`](notebooks/04_baselines.ipynb); code in [`src/evaluation/`](src/evaluation/) and [`src/models/`](src/models/).
 
-**Evaluation:** walk-forward backtesting (no look-ahead), MSE and QLIKE loss, Diebold-Mariano tests, regime analysis, ablation studies, and VaR backtesting with the Kupiec test.
+**Walk-forward backtest.** Each calendar year from 2006 is forecast by a model that has only seen earlier data (expanding window, 21 test years). The last *h* days before each test year are removed from training, because their targets overlap the test period (embargo).
+
+![Walk-forward evaluation](reports/figures/05_walk_forward.png)
+
+**Loss functions.**
+
+| Loss | Role | Why |
+|---|---|---|
+| QLIKE | Primary | Standard in the volatility literature: robust to the noise in the variance measure, and under-predicting risk costs more than over-predicting it |
+| MSE of log variance | Secondary | Symmetric; the quantity the machine-learning models are trained on |
+| MAE in annualised volatility points | Interpretation | "The forecast is off by 7 volatility points on average" |
+
+Models are compared on a **common sample** (dates on which every model has a forecast), and the scores are computed in SQL from the stored forecasts, so they can be reproduced without Python.
+
+**Baselines.** Five rules with no estimated parameters: the last observed value (naive), the average of the last month, the historical mean, an EWMA of the range-based variance (λ = 0.94) and RiskMetrics (the same EWMA applied to squared returns).
+
+Out-of-sample QLIKE, 2006 to 2026, about 307,000 forecasts per model and horizon (lower is better):
+
+| Baseline | 1 day | 5 days | 22 days |
+|---|---|---|---|
+| **EWMA of range-based variance** | **0.440** | **0.273** | **0.250** |
+| Monthly average | 0.468 | 0.302 | 0.281 |
+| RiskMetrics (EWMA of squared returns) | 0.478 | 0.317 | 0.298 |
+| Naive (last value) | 0.781 | 0.324 | 0.281 |
+| Historical mean | 0.728 | 0.528 | 0.414 |
+
+![Out-of-sample QLIKE of the baselines](reports/figures/05_baseline_scores.png)
+
+- **The bar to beat is the EWMA of the range-based variance**, with an average error of 7.1 volatility points at the 5-day horizon.
+- **Measurement matters as much as the model.** EWMA and RiskMetrics are the same formula; feeding it the range-based variance of Step 4 instead of squared returns lowers QLIKE by 8% (1 day) to 16% (22 days).
+- **Volatility is too persistent for its long-run average:** the historical mean is the worst baseline beyond one day, with errors almost twice as large as the others.
+- **No baseline wins everywhere.** In crisis periods (19% of forecasts) the naive forecast, which reacts fastest, has the lowest 5-day QLIKE (0.271 against 0.297 for EWMA); in calm periods EWMA is clearly better (0.267 against 0.337).
+
+![Forecasts during the COVID-19 crash](reports/figures/05_forecast_example.png)
+
+Simple averages only react **after** volatility has risen and stay too high once markets calm down. Reacting faster in both directions is what the models of the next steps must achieve.
+
+## Methodology (next steps)
+
+| Level | Models | Status |
+|---|---|---|
+| Baselines | Naive, monthly average, historical mean, EWMA, RiskMetrics | ✅ |
+| Econometrics | GARCH(1,1), GJR-GARCH, HAR-RV | Step 6 |
+| Machine learning | LightGBM (per-stock and pooled) | Step 7 |
+| Deep learning | LSTM / GRU, PatchTST or TFT | Step 8 |
+
+**Further evaluation:** Diebold-Mariano tests, regime analysis, ablation studies, and VaR backtesting with the Kupiec test.
 
 ## Tech stack
 
@@ -218,7 +266,7 @@ The final dataset has **371,839 complete rows** (59 series, December 2000 to Aug
 - **Econometrics:** arch, statsmodels
 - **Machine learning:** scikit-learn, LightGBM, Optuna, SHAP
 - **Deep learning:** PyTorch, neuralforecast
-- **Experiment tracking and testing:** MLflow, pytest
+- **Results tracking and testing:** forecasts and scores stored in PostgreSQL, pytest
 - **Visualisation and dashboard:** matplotlib, plotly, Power BI (connected to PostgreSQL)
 
 ## Repository structure
@@ -228,15 +276,16 @@ european-volatility-forecasting/
 ├── data/
 │   └── universe.csv    # list of tickers with country, sector, currency
 ├── sql/
-│   └── schema.sql      # PostgreSQL tables, keys, constraints and views
-├── notebooks/          # 01_data_quality, 02_eda, 03_features, ...
+│   ├── schema.sql      # PostgreSQL tables, keys, constraints and views
+│   └── score_models.sql  # loss functions computed in SQL from the stored forecasts
+├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, ...
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── viz.py          # shared chart style
 │   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
-│   ├── models/         # baselines, econometric, ML and DL models
-│   └── evaluation/     # walk-forward backtest, loss functions, tests
+│   ├── models/         # common model interface, baselines (then econometric, ML, DL)
+│   └── evaluation/     # walk-forward splits, backtest, loss functions, storage of results
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
 ├── powerbi/            # Power BI dashboard (.pbix)
@@ -267,6 +316,7 @@ python -m src.data.setup_db      # create database, tables and load the universe
 python -m src.data.fetch_prices  # download all price data into PostgreSQL (~2-3 minutes)
 python -m src.data.clean_prices  # clean the prices (prices_clean + cleaning_log)
 python -m src.features.build_features  # daily variance, features and targets
+python -m src.models.run_baselines     # walk-forward backtest of the baselines (forecasts + scores)
 python -m pytest                 # run the unit tests
 ```
 
@@ -281,8 +331,8 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 | 2 | Data cleaning and quality checks | ✅ Done |
 | 3 | Exploratory analysis: stylised facts of volatility | ✅ Done |
 | 4 | Volatility targets and feature engineering | ✅ Done |
-| 5 | Evaluation framework and baselines | ⏳ Next |
-| 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ⬜ |
+| 5 | Evaluation framework and baselines | ✅ Done |
+| 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ⏳ Next |
 | 7 | Machine learning (LightGBM, SHAP) | ⬜ |
 | 8 | Deep learning (LSTM, transformer) | ⬜ |
 | 9 | Model comparison and statistical analysis | ⬜ |
