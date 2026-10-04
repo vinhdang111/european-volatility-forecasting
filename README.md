@@ -98,7 +98,7 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `models` | 1 row per model | Model name, family and description |
 | `model_scores` | 1 row per model, horizon, ticker and test year | QLIKE, log MSE and MAE, computed in SQL on the common sample ([`sql/score_models.sql`](sql/score_models.sql)) |
 | `model_scores_overall` *(view)* | 1 row per model and horizon | Overall losses and rank of each model |
-| `model_parameters` | 1 row per model, horizon, fit, series and parameter | Estimated parameters of every walk-forward fit: GARCH α, β, γ per series, HAR coefficients (Step 6) |
+| `model_parameters` | 1 row per model, horizon, fit, series and parameter | Estimated parameters of every walk-forward fit: GARCH α, β, γ per series, HAR coefficients (Step 6), LightGBM hyperparameters and SHAP importances (Step 7) |
 
 ### Download pipeline
 
@@ -295,13 +295,50 @@ Implementation notes:
 - Series with less than two years of returns borrow the typical dynamics of the other series and keep their own variance level.
 - Known limitation: for **indices**, GARCH and HAR forecasts are 12 to 15% too high on average (GARCH because close-to-close returns are more volatile than the range-based target, HAR because one regression serves all series). HAR-X, which knows each series' long-run level, reduces this to 5%.
 
+## Machine learning: LightGBM
+
+Can a non-linear model extract more from the same features than the linear HAR-X? Details in [`notebooks/06_lightgbm.ipynb`](notebooks/06_lightgbm.ipynb); code in [`src/models/boosting.py`](src/models/boosting.py).
+
+| Model | Design |
+|---|---|
+| LightGBM | Gradient-boosted trees forecasting the variance from the 17 features of HAR-X, the day of the week and a stock / index flag |
+| HAR-X + LightGBM (hybrid) | HAR-X gives a first forecast; the trees learn a multiplicative correction to it |
+
+- **Trained directly on QLIKE:** LightGBM's gamma objective has the same loss function, so the models forecast the mean of the variance without a correction factor.
+- **Tuned without leakage:** hyperparameters are chosen by Optuna on the last two years of each training window, never on test data, and re-tuned for the test years 2006, 2013 and 2020. Optuna consistently selects small, regularised trees (5 to 30 leaves).
+
+Out-of-sample QLIKE, 2006 to 2026 (lower is better):
+
+| Model | 1 day | 5 days | 22 days |
+|---|---|---|---|
+| HAR-X + LightGBM | **0.371** | 0.220 | 0.214 |
+| LightGBM | 0.372 | 0.221 | 0.216 |
+| HAR-X | 0.378 | **0.220** | **0.199** |
+
+![Out-of-sample QLIKE of all models](reports/figures/07_model_scores.png)
+
+- **LightGBM matches HAR-X but does not beat it overall:** slightly better at 1 day (QLIKE 1.8% lower for the hybrid), equal at 5 days, 8% worse at 22 days, where overlapping targets leave few independent observations and a flexible model fits noise.
+- **In logarithms, volatility is close to linear.** A regression with 18 coefficients captures almost everything that hundreds of trees can find; the more complex model is not the better one, and HAR-X remains the reference.
+- **How a tree model is used matters.** The hybrid beats HAR-X in 14 test years out of 21, LightGBM alone in 7. In 2008, LightGBM alone is 5% worse than HAR-X, because a tree cannot forecast a volatility level it has never seen, while the hybrid is 2% better.
+- **The bias on indices disappears:** HAR-X forecasts were 5% too high on average for indices; the tree models bring indices in line with stocks.
+
+**What the trees add (SHAP values).** SHAP values split each forecast into the contribution of every feature. In the hybrid, the corrections are small (1 to 3% of the forecast for the most important features) and concern the state of the market rather than the series itself:
+
+![How the trees correct HAR-X](reports/figures/07_shap_dependence.png)
+
+- when the market-wide volatility of the **last week** exceeds about 28%, the forecast is raised by 5 to 9%;
+- when the market has been volatile for a **month**, it is lowered by up to 8%: fresh stress raises the forecast, lasting stress fades faster than a linear model assumes;
+- unusually high **trading volume** adds about 3%.
+
+![Average contribution of each feature](reports/figures/07_shap_importance.png)
+
 ## Methodology (next steps)
 
 | Level | Models | Status |
 |---|---|---|
 | Baselines | Naive, monthly average, historical mean, EWMA, RiskMetrics | ✅ |
 | Econometrics | GARCH(1,1), GJR-GARCH, HAR, HAR-X | ✅ |
-| Machine learning | LightGBM, compared with the linear HAR-X on the same features | Step 7 |
+| Machine learning | LightGBM, HAR-X + LightGBM hybrid | ✅ |
 | Deep learning | LSTM / GRU, PatchTST or TFT | Step 8 |
 
 **Further evaluation:** Diebold-Mariano tests, regime analysis, ablation studies, and VaR backtesting with the Kupiec test.
@@ -326,13 +363,13 @@ european-volatility-forecasting/
 ├── sql/
 │   ├── schema.sql      # PostgreSQL tables, keys, constraints and views
 │   └── score_models.sql  # loss functions computed in SQL from the stored forecasts
-├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, ...
+├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, 06_lightgbm, ...
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── viz.py          # shared chart style
 │   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
-│   ├── models/         # common model interface, baselines, GARCH, HAR (then ML, DL)
+│   ├── models/         # common model interface, baselines, GARCH, HAR, LightGBM (then DL)
 │   └── evaluation/     # walk-forward splits, backtest, loss functions, storage of results
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
@@ -366,6 +403,7 @@ python -m src.data.clean_prices  # clean the prices (prices_clean + cleaning_log
 python -m src.features.build_features  # daily variance, features and targets
 python -m src.models.run_baselines     # walk-forward backtest of the baselines (forecasts + scores)
 python -m src.models.run_econometric   # GARCH, GJR-GARCH, HAR, HAR-X (a few minutes)
+python -m src.models.run_lightgbm      # LightGBM and hybrid, with Optuna tuning (20 to 40 minutes)
 python -m pytest                 # run the unit tests
 ```
 
@@ -382,8 +420,8 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 | 4 | Volatility targets and feature engineering | ✅ Done |
 | 5 | Evaluation framework and baselines | ✅ Done |
 | 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ✅ Done |
-| 7 | Machine learning (LightGBM, SHAP) | ⏳ Next |
-| 8 | Deep learning (LSTM, transformer) | ⬜ |
+| 7 | Machine learning (LightGBM, SHAP) | ✅ Done |
+| 8 | Deep learning (LSTM, transformer) | ⏳ Next |
 | 9 | Model comparison and statistical analysis | ⬜ |
 | 10 | Application: Value-at-Risk backtesting | ⬜ |
 | 11 | Interactive dashboard (Power BI) | ⬜ |
