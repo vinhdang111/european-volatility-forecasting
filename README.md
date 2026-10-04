@@ -362,11 +362,25 @@ Out-of-sample QLIKE, 2006 to 2026 (lower is better):
 
 ![5-day QLIKE relative to HAR-X, by test year](reports/figures/08_vs_harx_by_year.png)
 
-- **The best model depends on the loss.** The Transformer has the lowest mean absolute error of all thirteen models at 5 and 22 days, but a worse QLIKE than HAR-X: it is very accurate on ordinary days and too low when volatility jumps. For risk management, where under-predicting risk is the costly error, QLIKE is the right judge.
 - **The LSTM is the better network here:** closer to HAR-X, more robust in crises, and twelve times faster to train (24 minutes against 4 hours 40 minutes on a laptop CPU, for 21 trainings each). A 22-day sequence is too short for the Transformer's strength to matter.
 - **Early stopping often stops after one epoch** (8 of 21 trainings): starting from HAR-X, there is frequently little left to learn.
 
 Limitations: the size of the networks (32 hidden units) and the length of the sequence (22 days) were chosen by judgement, not tuned, and each network was trained with a single random seed.
+
+### The most accurate model on average is not the safest one
+
+The Transformer is the best of the thirteen models by mean absolute error, and behind HAR-X by QLIKE. Both are true:
+
+| | MAE, 5 days | MAE, 22 days | QLIKE, 5 days | QLIKE, 22 days | QLIKE, calm periods | QLIKE, stress periods |
+|---|---|---|---|---|---|---|
+| Transformer | **6.30** | **6.16** | 0.222 | 0.212 | **0.223** | 0.215 |
+| HAR-X | 6.41 | 6.24 | **0.220** | **0.199** | 0.225 | **0.200** |
+
+The two losses do not measure the same thing. A forecast of 40% followed by an outcome of 20%, and a forecast of 20% followed by an outcome of 40%, are both wrong by 20 volatility points: for MAE they are identical, while for QLIKE **under-estimating risk costs two and a half times more** (1.61 against 0.64). The Transformer is very close on the many ordinary days and too low on the few days when volatility jumps, which gives an excellent MAE and a poor QLIKE.
+
+In practice a volatility forecast is used to size risk (a Value-at-Risk limit, a capital buffer, a position). A forecast that is too high leaves some capital idle; a forecast that is too low in a crisis means losses beyond what was provisioned, at the worst moment. The loss function has to reflect that asymmetry, and it has to be chosen **before** looking at the results: QLIKE was fixed as the primary loss in Step 5, otherwise almost any model could be declared the winner.
+
+![Forecasts during the COVID-19 crash](reports/figures/08_forecast_example.png)
 
 ## Methodology (next steps)
 
