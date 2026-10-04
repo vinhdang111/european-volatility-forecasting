@@ -29,3 +29,12 @@ class Forecaster:
     def predict(self, test: pd.DataFrame, horizon: int) -> pd.Series:
         """Forecast variance for each test row (same index as `test`)."""
         raise NotImplementedError
+
+
+def add_is_index(data: pd.DataFrame) -> pd.DataFrame:
+    """Add the 0/1 feature `is_index` (needs the column `asset_type`)."""
+    if "is_index" in data:
+        return data
+    if "asset_type" not in data:
+        raise KeyError("This model needs the column 'asset_type' (join the universe table)")
+    return data.assign(is_index=(data["asset_type"] == "index").astype(float))

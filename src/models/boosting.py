@@ -46,7 +46,7 @@ import optuna
 import pandas as pd
 
 from src.evaluation.metrics import qlike
-from src.models.base import Forecaster
+from src.models.base import Forecaster, add_is_index
 from src.models.har import EXTRA_FEATURES, HAR_FEATURES, HarX
 
 FEATURES = HAR_FEATURES + EXTRA_FEATURES + ["dow", "is_index"]
@@ -65,15 +65,6 @@ SHAP_SAMPLE = 2000                   # test rows per fold used to measure featur
 
 logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-
-
-def add_is_index(data: pd.DataFrame) -> pd.DataFrame:
-    """Add the 0/1 feature `is_index` (needs the column `asset_type`)."""
-    if "is_index" in data:
-        return data
-    if "asset_type" not in data:
-        raise KeyError("LightGBM models need the column 'asset_type' (join the universe table)")
-    return data.assign(is_index=(data["asset_type"] == "index").astype(float))
 
 
 class Lgbm(Forecaster):

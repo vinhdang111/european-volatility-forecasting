@@ -332,6 +332,42 @@ Out-of-sample QLIKE, 2006 to 2026 (lower is better):
 
 ![Average contribution of each feature](reports/figures/07_shap_importance.png)
 
+## Deep learning: LSTM and Transformer
+
+Can a neural network that reads the raw daily history do better than models fed with hand-made summaries? Details in [`notebooks/07_deep_learning.ipynb`](notebooks/07_deep_learning.ipynb); code in [`src/models/deep.py`](src/models/deep.py) (PyTorch).
+
+```
+tabular features of day t ─────────────────────┬──> linear layer ─────────────┐
+                                               │                             (+)──> log variance for 1, 5 and 22 days
+last 22 days ──> LSTM or Transformer ──> [concatenate] ──> small network ──────┘
+```
+
+- **Two sequence encoders:** an LSTM, which reads the 22 days in order and keeps a memory, and a Transformer, in which every day can look at every other day (self-attention).
+- **A linear path inside the network**, initialised with the least-squares solution: training starts from HAR-X, and the forecast can follow volatility beyond the levels seen in training.
+- **Trained on QLIKE, one network for the three horizons**, re-trained for every test year. The number of epochs is chosen by early stopping on the last year of the training window, and features are standardised with training statistics only.
+
+Out-of-sample QLIKE, 2006 to 2026 (lower is better):
+
+| Model | 1 day | 5 days | 22 days |
+|---|---|---|---|
+| HAR-X + LightGBM | **0.371** | 0.220 | 0.214 |
+| Transformer | 0.372 | 0.222 | 0.212 |
+| LSTM | 0.373 | 0.221 | 0.206 |
+| HAR-X | 0.378 | **0.220** | **0.199** |
+
+![Out-of-sample QLIKE of all models](reports/figures/08_model_scores.png)
+
+- **Deep learning does not beat HAR-X either:** slightly better at 1 day (QLIKE about 1.4% lower), level at 5 days, worse at 22 days (+3.6% for the LSTM, +6.8% for the Transformer). Across three families of models (econometric, tree-based, neural), accuracy converges to the same level: what remains is mostly unpredictable.
+- **Complex models fail differently:** not by being slightly worse everywhere, but by rare, large errors in years unlike their training data. The LSTM beats HAR-X in 12 test years out of 21, but is 47% worse in 2009, after being trained on the 2008 crisis; the Transformer is 24% worse in 2020.
+
+![5-day QLIKE relative to HAR-X, by test year](reports/figures/08_vs_harx_by_year.png)
+
+- **The best model depends on the loss.** The Transformer has the lowest mean absolute error of all thirteen models at 5 and 22 days, but a worse QLIKE than HAR-X: it is very accurate on ordinary days and too low when volatility jumps. For risk management, where under-predicting risk is the costly error, QLIKE is the right judge.
+- **The LSTM is the better network here:** closer to HAR-X, more robust in crises, and twelve times faster to train (24 minutes against 4 hours 40 minutes on a laptop CPU, for 21 trainings each). A 22-day sequence is too short for the Transformer's strength to matter.
+- **Early stopping often stops after one epoch** (8 of 21 trainings): starting from HAR-X, there is frequently little left to learn.
+
+Limitations: the size of the networks (32 hidden units) and the length of the sequence (22 days) were chosen by judgement, not tuned, and each network was trained with a single random seed.
+
 ## Methodology (next steps)
 
 | Level | Models | Status |
@@ -339,7 +375,7 @@ Out-of-sample QLIKE, 2006 to 2026 (lower is better):
 | Baselines | Naive, monthly average, historical mean, EWMA, RiskMetrics | ✅ |
 | Econometrics | GARCH(1,1), GJR-GARCH, HAR, HAR-X | ✅ |
 | Machine learning | LightGBM, HAR-X + LightGBM hybrid | ✅ |
-| Deep learning | LSTM / GRU, PatchTST or TFT | Step 8 |
+| Deep learning | LSTM, Transformer (PyTorch) | ✅ |
 
 **Further evaluation:** Diebold-Mariano tests, regime analysis, ablation studies, and VaR backtesting with the Kupiec test.
 
@@ -349,8 +385,8 @@ Out-of-sample QLIKE, 2006 to 2026 (lower is better):
 - **Data:** pandas, NumPy, yfinance
 - **Database:** PostgreSQL, SQLAlchemy, psycopg2
 - **Econometrics:** GARCH maximum likelihood with SciPy (checked against `arch`), HAR regressions with NumPy
-- **Machine learning:** scikit-learn, LightGBM, Optuna, SHAP
-- **Deep learning:** PyTorch, neuralforecast
+- **Machine learning:** LightGBM, Optuna, SHAP values (TreeSHAP)
+- **Deep learning:** PyTorch (LSTM and Transformer written from scratch)
 - **Results tracking and testing:** forecasts and scores stored in PostgreSQL, pytest
 - **Visualisation and dashboard:** matplotlib, plotly, Power BI (connected to PostgreSQL)
 
@@ -363,13 +399,13 @@ european-volatility-forecasting/
 ├── sql/
 │   ├── schema.sql      # PostgreSQL tables, keys, constraints and views
 │   └── score_models.sql  # loss functions computed in SQL from the stored forecasts
-├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, 06_lightgbm, ...
+├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, 06_lightgbm, 07_deep_learning, ...
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── viz.py          # shared chart style
 │   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
-│   ├── models/         # common model interface, baselines, GARCH, HAR, LightGBM (then DL)
+│   ├── models/         # common model interface, baselines, GARCH, HAR, LightGBM, neural networks
 │   └── evaluation/     # walk-forward splits, backtest, loss functions, storage of results
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
@@ -404,10 +440,11 @@ python -m src.features.build_features  # daily variance, features and targets
 python -m src.models.run_baselines     # walk-forward backtest of the baselines (forecasts + scores)
 python -m src.models.run_econometric   # GARCH, GJR-GARCH, HAR, HAR-X (a few minutes)
 python -m src.models.run_lightgbm      # LightGBM and hybrid, with Optuna tuning (20 to 40 minutes)
+python -m src.models.run_deep          # LSTM and Transformer (needs PyTorch, see below)
 python -m pytest                 # run the unit tests
 ```
 
-Deep learning models (Step 8) need extra packages: `pip install -r requirements-dl.txt` (a GPU, e.g. Google Colab, is recommended).
+The deep learning models need PyTorch: `pip install -r requirements-dl.txt`. They train on a GPU if PyTorch finds one, otherwise on the CPU (about 25 minutes for the LSTM and several hours for the Transformer on a laptop; `--refit-every 3` trains one network every three years instead of every year).
 
 ## Project status
 
@@ -421,8 +458,8 @@ Deep learning models (Step 8) need extra packages: `pip install -r requirements-
 | 5 | Evaluation framework and baselines | ✅ Done |
 | 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ✅ Done |
 | 7 | Machine learning (LightGBM, SHAP) | ✅ Done |
-| 8 | Deep learning (LSTM, transformer) | ⏳ Next |
-| 9 | Model comparison and statistical analysis | ⬜ |
+| 8 | Deep learning (LSTM, transformer) | ✅ Done |
+| 9 | Model comparison and statistical analysis | ⏳ Next |
 | 10 | Application: Value-at-Risk backtesting | ⬜ |
 | 11 | Interactive dashboard (Power BI) | ⬜ |
 | 12 | Final report and documentation | ⬜ |

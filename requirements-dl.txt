@@ -1,3 +1,2 @@
-# Deep learning dependencies (Step 8). Large downloads; a GPU is recommended.
+# Deep learning dependencies (Step 8). A large download; a GPU is optional (training also runs on a CPU).
 torch>=2.1
-neuralforecast>=1.7
