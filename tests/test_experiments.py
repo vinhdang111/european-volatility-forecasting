@@ -4,11 +4,11 @@ import pandas as pd
 import pytest
 
 from src.db import PROJECT_ROOT
-from src.evaluation.experiments import (ENSEMBLE_MEMBERS, FEATURE_GROUPS, REGIONS, HeldOutHarX, LinearVariant,
-                                        ablation_variants, build_ensembles, held_out_models, region_tickers,
-                                        score_by_segment)
+from src.evaluation.experiments import (ENSEMBLE_MEMBERS, ENSEMBLE_VARIANTS, FEATURE_GROUPS, REGIONS, HeldOutHarX,
+                                        LinearVariant, ablation_variants, build_ensembles, ensemble_variant_checks,
+                                        held_out_models, region_tickers, score_by_segment)
 from src.evaluation.run_comparison import confidence_sets, on_common_sample, pairwise_tests
-from src.evaluation.store import common_sample_sql, daily_losses_sql, replace_table
+from src.evaluation.store import common_sample_sql, daily_losses_sql, member_forecasts_sql, replace_table
 from src.features.build_features import build_features
 from src.models.har import EXTRA_FEATURES, HAR_FEATURES, Har, HarX
 from tests.test_features import make_panel
@@ -100,6 +100,30 @@ def test_ensembles_are_the_mean_and_the_median_of_the_members():
     assert first["ensemble_mean"] == 4.0 and first["ensemble_median"] == 3.0       # the median ignores the outlier
     assert "B" not in set(out["ticker"])                                           # a member is missing: no combination
     assert list(ENSEMBLE_MEMBERS) == ["har_x", "lgbm", "lgbm_hybrid", "lstm", "transformer"]
+
+
+def test_ensemble_variants_are_subsets_of_the_main_ensemble_and_drop_the_hybrid():
+    main, *others = ENSEMBLE_VARIANTS.values()
+    assert main == ENSEMBLE_MEMBERS
+    for members in others:
+        assert set(members) < set(main) and "lgbm_hybrid" not in members and "har_x" in members
+
+
+def test_ensemble_variant_checks_score_and_test_every_variant():
+    rng = np.random.default_rng(0)
+    dates = pd.bdate_range("2020-01-01", periods=400)
+    frame = pd.DataFrame({"horizon": 5, "ticker": np.repeat(["A", "B", "C"], 400), "date": np.tile(dates, 3)})
+    frame["actual_var"] = np.exp(rng.normal(0, 0.5, len(frame)))
+    for member in ENSEMBLE_MEMBERS:                              # five noisy, unbiased forecasts of the same outcome
+        frame[member] = frame["actual_var"] * np.exp(rng.normal(0, 0.4, len(frame)))
+    out = ensemble_variant_checks(frame).set_index("variant")
+
+    assert list(out.index) == list(ENSEMBLE_VARIANTS) and (out["n"] == len(frame)).all()
+    assert out["n_members"].tolist() == [5, 4, 3]
+    assert (out["qlike_vs_harx"] < -0.3).all() and (out["p_vs_harx"] < 0.01).all()    # averaging independent errors helps
+    assert out["qlike"].is_monotonic_increasing                                       # fewer members: less averaging
+    assert out.loc["5 members (main)", "qlike_vs_main"] == 0 and np.isnan(out.loc["5 members (main)", "p_vs_main"])
+    assert "f.lstm::double precision AS lstm" in member_forecasts_sql(["lstm"], ["lstm", "naive"])
 
 
 # ---------------------------------------------------------------------------

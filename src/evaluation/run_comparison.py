@@ -7,8 +7,8 @@
 3. Re-runs HAR-X with feature groups added or removed (ablation), with the
    stock / index flag, and without the series of each region (unseen markets).
 
-Results go to the tables `model_tests`, `model_confidence_set` and
-`experiment_scores`. All models of the previous steps must have been run.
+Results go to the tables `model_tests`, `model_confidence_set`,
+`ensemble_variants` and `experiment_scores`. All models of the previous steps must have been run.
 
 Usage (from the project root; a few minutes)
 --------------------------------------------
@@ -23,11 +23,11 @@ import pandas as pd
 
 from src.db import get_engine
 from src.evaluation.backtest import run_backtest
-from src.evaluation.experiments import (ENSEMBLE_MEMBERS, ablation_variants, build_ensembles, held_out_models,
-                                        score_by_segment)
+from src.evaluation.experiments import (ENSEMBLE_MEMBERS, ablation_variants, build_ensembles, ensemble_variant_checks,
+                                        held_out_models, score_by_segment)
 from src.evaluation.stats import diebold_mariano, model_confidence_set
-from src.evaluation.store import (common_sample_sql, load_daily_losses, refresh_scores, replace_table,
-                                  save_forecasts, stored_models)
+from src.evaluation.store import (common_sample_sql, load_daily_losses, member_forecasts_sql, refresh_scores,
+                                  replace_table, save_forecasts, stored_models)
 from src.features.build_features import HORIZONS
 from src.models.har import HarX
 
@@ -110,6 +110,10 @@ def main() -> None:
     logger.info("Daily losses: %d dates per horizon, %d models", daily_losses.groupby("horizon").size().min(), len(models))
     replace_table(engine, "model_tests", pairwise_tests(daily_losses, models))
     replace_table(engine, "model_confidence_set", confidence_sets(daily_losses, models))
+
+    # Robustness of the combination to the choice of its members
+    member_forecasts = pd.read_sql(member_forecasts_sql(ENSEMBLE_MEMBERS, models), engine, parse_dates=["date"])
+    replace_table(engine, "ensemble_variants", ensemble_variant_checks(member_forecasts))
 
     # 3. Controlled experiments around HAR-X
     data = pd.read_sql("SELECT f.*, u.asset_type, u.country FROM features f JOIN universe u USING (ticker)",

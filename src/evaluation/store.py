@@ -222,6 +222,15 @@ def common_sample_sql(models: list[str]) -> str:
             f"WHERE {_ACTUAL} IS NOT NULL AND {complete}")
 
 
+def member_forecasts_sql(members: list[str], models: list[str]) -> str:
+    """Forecasts of the given models next to the outcome, on the common sample of all stored models."""
+    columns = ", ".join(f"f.{check_model_name(m)}::double precision AS {m}" for m in members)
+    complete = " AND ".join(f"f.{check_model_name(m)} IS NOT NULL" for m in models)
+    return (f"SELECT f.horizon, f.ticker, f.date, {_ACTUAL} AS actual_var, {columns}\n"
+            f"FROM forecasts f JOIN features x USING (ticker, date)\n"
+            f"WHERE {_ACTUAL} IS NOT NULL AND {complete}")
+
+
 def stored_models(engine: Engine) -> list[str]:
     return pd.read_sql("SELECT model FROM models ORDER BY model", engine)["model"].tolist()
 

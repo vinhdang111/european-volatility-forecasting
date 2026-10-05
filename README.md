@@ -102,6 +102,7 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `model_tests` | 1 row per horizon and ordered pair of models | Diebold-Mariano tests: loss difference, statistic, p-value (Step 9) |
 | `model_confidence_set` | 1 row per horizon and model | Model Confidence Set: p-value and membership (Step 9) |
 | `experiment_scores` | 1 row per experiment, variant, horizon and segment | Ablation of feature groups and forecasts of unseen regions (Step 9) |
+| `ensemble_variants` | 1 row per set of members and horizon | Robustness of the forecast combination to the choice of its members (Step 9) |
 
 ### Download pipeline
 
@@ -418,6 +419,8 @@ Fifteen models, often within one or two percent of each other. [`notebooks/08_mo
 **Combining models is the one reliable improvement.** The average of the five models that use the full feature set (fixed in advance, equal weights) is significantly better than HAR-X at 1 and 5 days, and better in 19 test years out of 21. The single models fail in different years (the LSTM in 2009, the Transformer in 2020), and averaging dilutes each one's mistakes:
 
 ![5-day QLIKE relative to HAR-X, by model and test year](reports/figures/09_by_year.png)
+
+One objection: the hybrid is built from HAR-X and LightGBM, so those two are counted twice. A robustness check (added after the main results) shows that this does not drive the result: without the hybrid the QLIKE changes by +0.08%, -0.07% and -0.46% at 1, 5 and 22 days, and with only three members (HAR-X, LightGBM, LSTM) the combination still beats HAR-X by 2.1% and 1.6% at 1 and 5 days (p < 0.001).
 
 **Where does the accuracy come from?** HAR-X re-estimated with one group of features added or removed at a time:
 

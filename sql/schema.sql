@@ -385,3 +385,23 @@ CREATE TABLE IF NOT EXISTS experiment_scores (
     bias        DOUBLE PRECISION NOT NULL,
     PRIMARY KEY (experiment, variant, horizon, segment)
 );
+
+-- ---------------------------------------------------------------------
+-- 16. Robustness of the forecast combination to the choice of its members
+--     (the five members overlap: the hybrid is HAR-X corrected by LightGBM).
+--     qlike_vs_harx / qlike_vs_main: relative difference in QLIKE;
+--     p-values from Diebold-Mariano tests on the daily average QLIKE.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ensemble_variants (
+    variant        TEXT NOT NULL,
+    horizon        SMALLINT NOT NULL,
+    n_members      SMALLINT NOT NULL,
+    n              INTEGER NOT NULL,
+    qlike          DOUBLE PRECISION NOT NULL,
+    mae_vol        DOUBLE PRECISION NOT NULL,
+    qlike_vs_harx  DOUBLE PRECISION NOT NULL,
+    p_vs_harx      DOUBLE PRECISION,
+    qlike_vs_main  DOUBLE PRECISION NOT NULL,
+    p_vs_main      DOUBLE PRECISION,
+    PRIMARY KEY (variant, horizon)
+);

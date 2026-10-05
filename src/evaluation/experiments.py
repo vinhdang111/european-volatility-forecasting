@@ -20,6 +20,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.evaluation.metrics import abs_error_vol, qlike
+from src.evaluation.stats import diebold_mariano
 from src.models.base import add_is_index
 from src.models.har import HAR_FEATURES, Har, HarX
 
@@ -43,6 +45,14 @@ REGIONS = {
 }
 
 ENSEMBLE_MEMBERS = ["har_x", "lgbm", "lgbm_hybrid", "lstm", "transformer"]
+
+# Robustness check: the hybrid is itself HAR-X corrected by LightGBM, so the five members overlap.
+# Do the conclusions hold with fewer, more distinct members?
+ENSEMBLE_VARIANTS = {
+    "5 members (main)": ENSEMBLE_MEMBERS,
+    "4 members, without the hybrid": ["har_x", "lgbm", "lstm", "transformer"],
+    "3 members, one per family": ["har_x", "lgbm", "lstm"],
+}
 
 
 class LinearVariant(Har):
@@ -124,3 +134,33 @@ def score_by_segment(predictions: pd.DataFrame, segment: pd.Series | None = None
     out = grouped[["qlike", "log_mse", "mae_vol", "bias"]].mean()
     out.insert(0, "n", grouped.size())
     return out.reset_index().rename(columns={"model": "variant"})
+
+
+def ensemble_variant_checks(forecasts: pd.DataFrame, reference: str = "har_x",
+                            variants: dict[str, list[str]] = ENSEMBLE_VARIANTS) -> pd.DataFrame:
+    """Score the average of different sets of members, and test each against HAR-X and against the main set.
+
+    `forecasts` has the columns horizon, ticker, date, actual_var and one column per
+    member, restricted to the common sample. Tests are Diebold-Mariano tests on the
+    daily average QLIKE. Returns one row per variant and horizon.
+    """
+    main = next(iter(variants))
+    rows = []
+    for horizon, frame in forecasts.groupby("horizon"):
+        actual = frame["actual_var"].to_numpy()
+        combined = {name: frame[members].to_numpy(dtype=float).mean(axis=1) for name, members in variants.items()}
+        losses = pd.DataFrame({name: qlike(actual, values) for name, values in combined.items()})
+        losses[reference] = qlike(actual, frame[reference].to_numpy(dtype=float))
+        daily = losses.groupby(frame["date"].to_numpy()).mean()
+        for name, values in combined.items():
+            versus_reference = diebold_mariano(daily[name].to_numpy(), daily[reference].to_numpy(), horizon=int(horizon))
+            versus_main = diebold_mariano(daily[name].to_numpy(), daily[main].to_numpy(), horizon=int(horizon))
+            rows.append({
+                "variant": name, "horizon": int(horizon), "n_members": len(variants[name]), "n": len(frame),
+                "qlike": float(losses[name].mean()), "mae_vol": float(abs_error_vol(actual, values).mean()),
+                "qlike_vs_harx": float(losses[name].mean() / losses[reference].mean() - 1),
+                "p_vs_harx": versus_reference.p_value,
+                "qlike_vs_main": float(losses[name].mean() / losses[main].mean() - 1),
+                "p_vs_main": versus_main.p_value if name != main else np.nan,
+            })
+    return pd.DataFrame(rows)
