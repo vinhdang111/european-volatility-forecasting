@@ -99,6 +99,9 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `model_scores` | 1 row per model, horizon, ticker and test year | QLIKE, log MSE and MAE, computed in SQL on the common sample ([`sql/score_models.sql`](sql/score_models.sql)) |
 | `model_scores_overall` *(view)* | 1 row per model and horizon | Overall losses and rank of each model |
 | `model_parameters` | 1 row per model, horizon, fit, series and parameter | Estimated parameters of every walk-forward fit: GARCH α, β, γ per series, HAR coefficients (Step 6), LightGBM hyperparameters and SHAP importances (Step 7) |
+| `model_tests` | 1 row per horizon and ordered pair of models | Diebold-Mariano tests: loss difference, statistic, p-value (Step 9) |
+| `model_confidence_set` | 1 row per horizon and model | Model Confidence Set: p-value and membership (Step 9) |
+| `experiment_scores` | 1 row per experiment, variant, horizon and segment | Ablation of feature groups and forecasts of unseen regions (Step 9) |
 
 ### Download pipeline
 
@@ -382,6 +385,56 @@ In practice a volatility forecast is used to size risk (a Value-at-Risk limit, a
 
 ![Forecasts during the COVID-19 crash](reports/figures/08_forecast_example.png)
 
+At the peak of the COVID-19 crash, the Transformer (orange) stays well below the other forecasts: accurate before and after, too low when it matters. Step 10 tests this directly by backtesting Value-at-Risk with each model.
+
+## Model comparison: what is really different, and why
+
+Fifteen models, often within one or two percent of each other. [`notebooks/08_model_comparison.ipynb`](notebooks/08_model_comparison.ipynb) tests whether the differences are real and where the accuracy comes from; code in [`src/evaluation/stats.py`](src/evaluation/stats.py) and [`src/evaluation/experiments.py`](src/evaluation/experiments.py).
+
+**Final ranking** (out-of-sample QLIKE, 2006 to 2026, lower is better):
+
+| Model | 1 day | 5 days | 22 days |
+|---|---|---|---|
+| **Ensemble: mean of HAR-X, both LightGBM models and both networks** | **0.369** | **0.216** | 0.202 |
+| Ensemble: median of the same five | 0.370 | 0.217 | 0.201 |
+| HAR-X + LightGBM | 0.371 | 0.220 | 0.214 |
+| HAR-X | 0.378 | 0.220 | **0.199** |
+| LSTM | 0.373 | 0.221 | 0.206 |
+| LightGBM | 0.372 | 0.221 | 0.216 |
+| Transformer | 0.372 | 0.222 | 0.212 |
+| HAR | 0.400 | 0.242 | 0.212 |
+| GJR-GARCH | 0.431 | 0.262 | 0.222 |
+| EWMA (best baseline) | 0.440 | 0.273 | 0.250 |
+
+**Are the differences real?** Diebold-Mariano tests on the daily average loss (one observation per date, Newey-West variance) and the Model Confidence Set (block bootstrap):
+
+![Diebold-Mariano tests between all pairs of models](reports/figures/09_pairwise_tests.png)
+
+- **1 day: the gains of the complex models are real but small.** The five advanced models and the two combinations are all significantly better than HAR-X (p < 0.01), by 1.3 to 2.4%.
+- **5 days: the algorithm does not matter.** A linear regression, gradient-boosted trees, an LSTM and a Transformer cannot be distinguished statistically (p-values of 0.56 to 0.91 against HAR-X). Only the combinations are significantly better.
+- **22 days: HAR-X is the best**, and the LightGBM models are significantly worse (+8%, p < 0.001).
+- **What is never in doubt:** HAR-X beats HAR, GARCH and every baseline significantly. Measuring volatility well and using the right information matter far more than the choice of the algorithm.
+
+**Combining models is the one reliable improvement.** The average of the five models that use the full feature set (fixed in advance, equal weights) is significantly better than HAR-X at 1 and 5 days, and better in 19 test years out of 21. The single models fail in different years (the LSTM in 2009, the Transformer in 2020), and averaging dilutes each one's mistakes:
+
+![5-day QLIKE relative to HAR-X, by model and test year](reports/figures/09_by_year.png)
+
+**Where does the accuracy come from?** HAR-X re-estimated with one group of features added or removed at a time:
+
+![Contribution of each group of features](reports/figures/09_ablation.png)
+
+- No group is essential: removing any one costs at most 2.8%. The 9% gain of HAR-X over HAR is the sum of several modest contributions.
+- The **slow components of volatility** (quarterly average, long-run level) are the least replaceable; the **VIX** looks useful alone (-1.9%) but is almost redundant once European market-wide volatility is in the model (+0.5%).
+- **Equal information before comparing:** the tree and neural models removed the bias of HAR-X on indices, but they had a stock / index flag that HAR-X did not. Given the same flag, the linear model is fixed just as well (actual / forecast from 0.945 to 1.001): the improvement came from the information, not from non-linearity.
+
+**Does the model work on markets it has never seen?** For each of seven regions, HAR-X is re-estimated without any stock or index of that region, then used to forecast them:
+
+![5-day QLIKE by region, with and without the region in training](reports/figures/09_unseen_regions.png)
+
+The loss is below 0.2% for five regions out of seven, and 1.1% at most (Nordics). The model has learned a general law of volatility, not the behaviour of 59 particular series.
+
+**Recommendation.** For horizons of 1 to 5 days, the average of the five models; for a month, HAR-X alone. If only one model can be maintained, HAR-X: within 2.4% of the best at every horizon, estimated in seconds, 18 readable coefficients, and no bad year.
+
 ## Methodology (next steps)
 
 | Level | Models | Status |
@@ -391,7 +444,7 @@ In practice a volatility forecast is used to size risk (a Value-at-Risk limit, a
 | Machine learning | LightGBM, HAR-X + LightGBM hybrid | ✅ |
 | Deep learning | LSTM, Transformer (PyTorch) | ✅ |
 
-**Further evaluation:** Diebold-Mariano tests, regime analysis, ablation studies, and VaR backtesting with the Kupiec test.
+**Next:** Value-at-Risk backtesting with the Kupiec test (Step 10), Power BI dashboard (Step 11).
 
 ## Tech stack
 
@@ -413,14 +466,14 @@ european-volatility-forecasting/
 ├── sql/
 │   ├── schema.sql      # PostgreSQL tables, keys, constraints and views
 │   └── score_models.sql  # loss functions computed in SQL from the stored forecasts
-├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, 06_lightgbm, 07_deep_learning, ...
+├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, 06_lightgbm, 07_deep_learning, 08_model_comparison, ...
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── viz.py          # shared chart style
 │   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
 │   ├── models/         # common model interface, baselines, GARCH, HAR, LightGBM, neural networks
-│   └── evaluation/     # walk-forward splits, backtest, loss functions, storage of results
+│   └── evaluation/     # walk-forward splits, backtest, loss functions, statistical tests, experiments
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
 ├── powerbi/            # Power BI dashboard (.pbix)
@@ -455,6 +508,7 @@ python -m src.models.run_baselines     # walk-forward backtest of the baselines 
 python -m src.models.run_econometric   # GARCH, GJR-GARCH, HAR, HAR-X (a few minutes)
 python -m src.models.run_lightgbm      # LightGBM and hybrid, with Optuna tuning (20 to 40 minutes)
 python -m src.models.run_deep          # LSTM and Transformer (needs PyTorch, see below)
+python -m src.evaluation.run_comparison  # forecast combinations, statistical tests, ablation (a few minutes)
 python -m pytest                 # run the unit tests
 ```
 
@@ -473,8 +527,8 @@ The deep learning models need PyTorch: `pip install -r requirements-dl.txt`. The
 | 6 | Econometric models (GARCH, GJR-GARCH, HAR) | ✅ Done |
 | 7 | Machine learning (LightGBM, SHAP) | ✅ Done |
 | 8 | Deep learning (LSTM, transformer) | ✅ Done |
-| 9 | Model comparison and statistical analysis | ⏳ Next |
-| 10 | Application: Value-at-Risk backtesting | ⬜ |
+| 9 | Model comparison and statistical analysis | ✅ Done |
+| 10 | Application: Value-at-Risk backtesting | ⏳ Next |
 | 11 | Interactive dashboard (Power BI) | ⬜ |
 | 12 | Final report and documentation | ⬜ |
 

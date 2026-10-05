@@ -328,3 +328,60 @@ CREATE TABLE IF NOT EXISTS model_parameters (
     value      DOUBLE PRECISION NOT NULL,
     PRIMARY KEY (model, horizon, train_end, series, parameter)
 );
+
+-- =====================================================================
+-- Step 9: statistical comparison of the models and controlled experiments
+-- Written by `python -m src.evaluation.run_comparison`.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 13. Diebold-Mariano tests between every pair of models, on the daily
+--     average QLIKE (one observation per date, Newey-West variance).
+--     mean_loss_diff = loss(model) - loss(reference): negative means that
+--     `model` is the more accurate of the two.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS model_tests (
+    horizon         SMALLINT NOT NULL,
+    model           TEXT NOT NULL REFERENCES models (model),
+    reference       TEXT NOT NULL REFERENCES models (model),
+    n_dates         INTEGER NOT NULL,
+    mean_loss_diff  DOUBLE PRECISION NOT NULL,
+    dm_stat         DOUBLE PRECISION,
+    p_value         DOUBLE PRECISION,
+    PRIMARY KEY (horizon, model, reference)
+);
+
+-- ---------------------------------------------------------------------
+-- 14. Model Confidence Set: the models that cannot be distinguished from
+--     the best one. `eliminated` is the order in which a model was removed
+--     (NULL for the last model standing).
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS model_confidence_set (
+    horizon      SMALLINT NOT NULL,
+    model        TEXT NOT NULL REFERENCES models (model),
+    mean_loss    DOUBLE PRECISION NOT NULL,
+    mcs_p_value  DOUBLE PRECISION NOT NULL,
+    eliminated   SMALLINT,
+    in_set       BOOLEAN NOT NULL,
+    PRIMARY KEY (horizon, model)
+);
+
+-- ---------------------------------------------------------------------
+-- 15. Scores of the controlled experiments around HAR-X:
+--     experiment = 'ablation' (feature groups added or removed),
+--                  'unseen_region' (model estimated without the region),
+--     segment    = 'all', an asset type, or a region.
+--     bias = average of actual / forecast (1 = right on average).
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS experiment_scores (
+    experiment  TEXT NOT NULL,
+    variant     TEXT NOT NULL,
+    horizon     SMALLINT NOT NULL,
+    segment     TEXT NOT NULL,
+    n           INTEGER NOT NULL,
+    qlike       DOUBLE PRECISION NOT NULL,
+    log_mse     DOUBLE PRECISION NOT NULL,
+    mae_vol     DOUBLE PRECISION NOT NULL,
+    bias        DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (experiment, variant, horizon, segment)
+);

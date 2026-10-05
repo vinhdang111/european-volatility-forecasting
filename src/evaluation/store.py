@@ -197,3 +197,55 @@ def refresh_scores(engine: Engine) -> None:
 
 def load_overall_scores(engine: Engine) -> pd.DataFrame:
     return pd.read_sql("SELECT * FROM model_scores_overall", engine)
+
+
+# ---------------------------------------------------------------------------
+# Step 9: losses per day, and result tables of the model comparison
+# ---------------------------------------------------------------------------
+_ACTUAL = "exp(CASE f.horizon WHEN 1 THEN x.target_1d WHEN 5 THEN x.target_5d ELSE x.target_22d END)"
+
+
+def daily_losses_sql(models: list[str]) -> str:
+    """Average QLIKE of each model per horizon and day, on the common sample (one column per model)."""
+    losses = ", ".join(f"avg({_ACTUAL} / f.{check_model_name(m)} - ln({_ACTUAL} / f.{m}) - 1) AS {m}" for m in models)
+    complete = " AND ".join(f"f.{m} IS NOT NULL" for m in models)
+    return (f"SELECT f.horizon, f.date, count(*) AS n, {losses}\n"
+            f"FROM forecasts f JOIN features x USING (ticker, date)\n"
+            f"WHERE {_ACTUAL} IS NOT NULL AND {complete}\n"
+            f"GROUP BY f.horizon, f.date ORDER BY f.horizon, f.date")
+
+
+def common_sample_sql(models: list[str]) -> str:
+    """Keys (horizon, ticker, date) for which every model has a forecast and the outcome is known."""
+    complete = " AND ".join(f"f.{check_model_name(m)} IS NOT NULL" for m in models)
+    return (f"SELECT f.horizon, f.ticker, f.date FROM forecasts f JOIN features x USING (ticker, date)\n"
+            f"WHERE {_ACTUAL} IS NOT NULL AND {complete}")
+
+
+def stored_models(engine: Engine) -> list[str]:
+    return pd.read_sql("SELECT model FROM models ORDER BY model", engine)["model"].tolist()
+
+
+def load_daily_losses(engine: Engine) -> pd.DataFrame:
+    return pd.read_sql(daily_losses_sql(stored_models(engine)), engine, parse_dates=["date"])
+
+
+def replace_table(engine: Engine, table: str, frame: pd.DataFrame) -> None:
+    """Replace the whole content of a result table with `frame` (columns must match the table)."""
+    if not re.fullmatch(r"[a-z_]+", table):
+        raise ValueError(f"Invalid table name: {table!r}")
+    buffer = io.StringIO()
+    frame.to_csv(buffer, index=False, header=False, na_rep="", float_format="%.10g")
+    buffer.seek(0)
+    raw = engine.raw_connection()
+    try:
+        with raw.cursor() as cur:
+            cur.execute(f"TRUNCATE {table}")
+            cur.copy_expert(f"COPY {table} ({', '.join(frame.columns)}) FROM STDIN WITH (FORMAT csv, NULL '')", buffer)
+        raw.commit()
+    except Exception:
+        raw.rollback()
+        raise
+    finally:
+        raw.close()
+    logger.info("%s: %d rows", table, len(frame))
