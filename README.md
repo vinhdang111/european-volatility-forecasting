@@ -103,6 +103,10 @@ universe ──┬──< prices_raw          (ticker, date)  raw daily OHLCV fr
 | `model_confidence_set` | 1 row per horizon and model | Model Confidence Set: p-value and membership (Step 9) |
 | `experiment_scores` | 1 row per experiment, variant, horizon and segment | Ablation of feature groups and forecasts of unseen regions (Step 9) |
 | `ensemble_variants` | 1 row per set of members and horizon | Robustness of the forecast combination to the choice of its members (Step 9) |
+| `var_quantiles` | 1 row per model, confidence level, ticker and year | Empirical multipliers used to build the VaR (Step 10) |
+| `var_backtest` | 1 row per model, method, confidence level and ticker | Violations, average VaR, quantile loss, Kupiec and Christoffersen tests (Step 10) |
+| `var_backtest_yearly` | 1 row per model, method, confidence level, ticker and year | Violations per year and Basel traffic-light zone (Step 10) |
+| `var_tests` | 1 row per model, method and confidence level | Diebold-Mariano tests on the quantile loss against HAR-X (Step 10) |
 
 ### Download pipeline
 
@@ -438,6 +442,59 @@ The loss is below 0.2% for five regions out of seven, and 1.1% at most (Nordics)
 
 **Recommendation.** For horizons of 1 to 5 days, the average of the five models; for a month, HAR-X alone. If only one model can be maintained, HAR-X: within 2.4% of the best at every horizon, estimated in seconds, 18 readable coefficients, and no bad year.
 
+## Application: Value-at-Risk backtest
+
+Notebook: [`notebooks/09_var_backtest.ipynb`](notebooks/09_var_backtest.ipynb)
+
+The 1-day **Value-at-Risk** (VaR) at 99% is the loss that should be exceeded on only 1 day out of 100; a day on which it is exceeded is a **violation**. Every model's 1-day forecast is turned into a VaR:
+
+> VaR(tomorrow) = multiplier × forecast volatility(tomorrow)
+
+| Multiplier | Definition |
+|---|---|
+| Normal | Quantile of the normal distribution: 2.33 volatilities at 99%, 1.64 at 95% |
+| Empirical (filtered historical simulation) | Quantile of the model's own past standardised returns, re-estimated each year for each series on earlier years only |
+
+A benchmark without a volatility model is added: **historical simulation**, the quantile of the last 250 returns. The backtest covers 293,336 daily returns per model (59 series, 2007 to 2026).
+
+![Euro Stoxx 50: daily returns and two 99% VaR limits around the COVID-19 crash](reports/figures/10_var_example.png)
+
+Around the COVID-19 crash neither limit kept its promise, but they failed differently: historical simulation was violated eight times in four weeks and then stayed at 5.6% for the rest of the year; the HAR-X limit went from 1.3% to 13% within days and came back down.
+
+**Four questions asked of every VaR:**
+
+| Question | Tool |
+|---|---|
+| Is the number of violations right? | Kupiec proportion-of-failures test, series by series |
+| Do violations come in clusters? | Christoffersen independence test |
+| What would the regulator say? | Basel traffic light (violations of the 99% VaR per year: green up to 4, yellow 5 to 9, red from 10) |
+| Which VaR is better at equal coverage? | Quantile loss, with Diebold-Mariano tests against HAR-X |
+
+**Results** (99% VaR, empirical multiplier):
+
+| | Violations (promised: 1%) | Series passing Kupiec | Series without clustering | Average VaR | Quantile loss vs HAR-X | Series-years outside the green zone |
+|---|---|---|---|---|---|---|
+| Historical simulation (no volatility model) | 1.61% | 0% | 31% | 4.45% | +18.4% | 37% |
+| RiskMetrics | 1.21% | 76% | 85% | 4.53% | +5.7% | 18% |
+| GJR-GARCH | 1.18% | 76% | 95% | 4.40% | +3.0% | 19% |
+| HAR-X | 1.17% | 80% | 95% | 4.30% | reference | 19% |
+| **Ensemble (mean of 5)** | **1.14%** | **81%** | **98%** | **4.30%** | **-0.9%** (significant) | **17%** |
+
+![Quantile loss of every model relative to HAR-X](reports/figures/10_quantile_loss.png)
+
+- **Returns have fat tails, whatever the model.** Standardised returns have the right standard deviation (1.00 to 1.02) but their 1% quantile is at -2.7, not -2.33. The normal multiplier is acceptable at 95% and fails at 99% for every model (1.6 to 1.8% of violations); the multiplier has to be learned from the data.
+- **Any volatility model beats historical simulation by a wide margin:** fewer violations, far less clustering, and a quantile loss 11% lower with RiskMetrics alone.
+- **A better forecast buys the same protection with less capital.** With a learned multiplier, almost any forecast has the right number of violations: the naive forecast passes the Kupiec test as often as HAR-X, but needs a VaR of 5.30% of the position against 4.30%. Counting violations shows whether a VaR is honest, not whether it is good.
+- **The practical ranking is the statistical one.** Baselines, GARCH, HAR, then HAR-X and the more complex models; beyond HAR-X the gains are below 1.3% and only the combinations are significantly better, as in the model comparison.
+- **The most accurate model on average is not the safest one.** With the raw forecasts, the Transformer has the most violations of the advanced models in 2020 (2.58% against 2.31% for HAR-X) and in 2022 (1.91% against 1.55%). The effect is real and modest.
+- **No model kept the promise in 2020** (1.7% of violations at best): a crash that starts from a calm market cannot be forecast from past prices.
+
+![Basel traffic light of the 99% VaR by model](reports/figures/10_traffic_light.png)
+
+A correct VaR is outside the green zone 11% of the time by bad luck alone. The best models are at 16 to 19% and practically never in the red zone; historical simulation is at 37%, with 4.7% of red years. With the normal multiplier, the good models would be outside the green zone 40 to 45% of the time: the multiplier matters more than the model.
+
+**Limits.** One-day horizon; each stock or index on its own (a portfolio VaR also needs correlations); Expected Shortfall is not covered.
+
 ## Methodology (next steps)
 
 | Level | Models | Status |
@@ -446,8 +503,9 @@ The loss is below 0.2% for five regions out of seven, and 1.1% at most (Nordics)
 | Econometrics | GARCH(1,1), GJR-GARCH, HAR, HAR-X | ✅ |
 | Machine learning | LightGBM, HAR-X + LightGBM hybrid | ✅ |
 | Deep learning | LSTM, Transformer (PyTorch) | ✅ |
+| Application | Value-at-Risk backtest (Kupiec, Christoffersen, Basel traffic light) | ✅ |
 
-**Next:** Value-at-Risk backtesting with the Kupiec test (Step 10), Power BI dashboard (Step 11).
+**Next:** Power BI dashboard (Step 11).
 
 ## Tech stack
 
@@ -469,14 +527,15 @@ european-volatility-forecasting/
 ├── sql/
 │   ├── schema.sql      # PostgreSQL tables, keys, constraints and views
 │   └── score_models.sql  # loss functions computed in SQL from the stored forecasts
-├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, 06_lightgbm, 07_deep_learning, 08_model_comparison, ...
+├── notebooks/          # 01_data_quality, 02_eda, 03_features, 04_baselines, 05_econometric_models, 06_lightgbm, 07_deep_learning, 08_model_comparison, 09_var_backtest
 ├── src/
 │   ├── db.py           # database connection (reads .env)
 │   ├── viz.py          # shared chart style
 │   ├── data/           # database setup, download and cleaning
 │   ├── features/       # volatility estimators, targets, features
 │   ├── models/         # common model interface, baselines, GARCH, HAR, LightGBM, neural networks
-│   └── evaluation/     # walk-forward splits, backtest, loss functions, statistical tests, experiments
+│   ├── evaluation/     # walk-forward splits, backtest, loss functions, statistical tests, experiments
+│   └── risk/           # Value-at-Risk construction and backtests
 ├── tests/              # unit tests (incl. data-leakage checks)
 ├── reports/figures/    # charts used in this README
 ├── powerbi/            # Power BI dashboard (.pbix)
@@ -512,6 +571,7 @@ python -m src.models.run_econometric   # GARCH, GJR-GARCH, HAR, HAR-X (a few min
 python -m src.models.run_lightgbm      # LightGBM and hybrid, with Optuna tuning (20 to 40 minutes)
 python -m src.models.run_deep          # LSTM and Transformer (needs PyTorch, see below)
 python -m src.evaluation.run_comparison  # forecast combinations, statistical tests, ablation (a few minutes)
+python -m src.risk.run_var_backtest      # Value-at-Risk backtest of every model (about a minute)
 python -m pytest                 # run the unit tests
 ```
 
@@ -531,8 +591,8 @@ The deep learning models need PyTorch: `pip install -r requirements-dl.txt`. The
 | 7 | Machine learning (LightGBM, SHAP) | ✅ Done |
 | 8 | Deep learning (LSTM, transformer) | ✅ Done |
 | 9 | Model comparison and statistical analysis | ✅ Done |
-| 10 | Application: Value-at-Risk backtesting | ⏳ Next |
-| 11 | Interactive dashboard (Power BI) | ⬜ |
+| 10 | Application: Value-at-Risk backtesting | ✅ Done |
+| 11 | Interactive dashboard (Power BI) | ⏳ Next |
 | 12 | Final report and documentation | ⬜ |
 
 ## Author

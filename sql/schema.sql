@@ -405,3 +405,112 @@ CREATE TABLE IF NOT EXISTS ensemble_variants (
     p_vs_main      DOUBLE PRECISION,
     PRIMARY KEY (variant, horizon)
 );
+
+-- =====================================================================
+-- Step 10: Value-at-Risk backtest
+-- Written by `python -m src.risk.run_var_backtest`.
+-- The 1-day VaR of a model is  - quantile * forecast volatility,  with
+--   method = 'normal'     quantile of the normal distribution,
+--            'empirical'  quantile of the model's own past standardised returns,
+--            'historical' benchmark without a volatility model
+--                         (model = 'historical_simulation': quantile of the last 250 returns).
+-- confidence is 95 or 99 (percent). mean_var and quantile_loss are in return
+-- units (0.03 = 3%).
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 17. Empirical quantiles: the quantile of standardised returns used for
+--     each model, series and year, estimated on the earlier test years.
+--     pooled = TRUE when the series had too little history of its own and
+--     the quantile of all series together was used.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS var_quantiles (
+    model       TEXT NOT NULL REFERENCES models (model),
+    confidence  SMALLINT NOT NULL CHECK (confidence IN (95, 99)),
+    ticker      TEXT NOT NULL REFERENCES universe (ticker),
+    year        SMALLINT NOT NULL,
+    quantile    DOUBLE PRECISION NOT NULL,
+    n_obs       INTEGER NOT NULL,
+    pooled      BOOLEAN NOT NULL,
+    PRIMARY KEY (model, confidence, ticker, year)
+);
+
+-- ---------------------------------------------------------------------
+-- 18. Backtest per series over the whole test period.
+--     kupiec_p: test of the number of violations; independence_p:
+--     Christoffersen test of clustering; cond_coverage_p: both together.
+--     A p-value below 0.05 means that the VaR fails the test.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS var_backtest (
+    model            TEXT NOT NULL,
+    method           TEXT NOT NULL CHECK (method IN ('normal', 'empirical', 'historical')),
+    confidence       SMALLINT NOT NULL CHECK (confidence IN (95, 99)),
+    ticker           TEXT NOT NULL REFERENCES universe (ticker),
+    n                INTEGER NOT NULL,
+    violations       INTEGER NOT NULL,
+    mean_var         DOUBLE PRECISION NOT NULL,
+    quantile_loss    DOUBLE PRECISION NOT NULL,
+    kupiec_stat      DOUBLE PRECISION NOT NULL,
+    kupiec_p         DOUBLE PRECISION NOT NULL,
+    independence_p   DOUBLE PRECISION,
+    cond_coverage_p  DOUBLE PRECISION,
+    PRIMARY KEY (model, method, confidence, ticker)
+);
+
+-- ---------------------------------------------------------------------
+-- 19. Backtest per series and calendar year. zone is the Basel traffic
+--     light (green / yellow / red) for the number of violations of the year.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS var_backtest_yearly (
+    model          TEXT NOT NULL,
+    method         TEXT NOT NULL CHECK (method IN ('normal', 'empirical', 'historical')),
+    confidence     SMALLINT NOT NULL CHECK (confidence IN (95, 99)),
+    ticker         TEXT NOT NULL REFERENCES universe (ticker),
+    year           SMALLINT NOT NULL,
+    n              INTEGER NOT NULL,
+    violations     INTEGER NOT NULL,
+    mean_var       DOUBLE PRECISION NOT NULL,
+    quantile_loss  DOUBLE PRECISION NOT NULL,
+    zone           TEXT NOT NULL CHECK (zone IN ('green', 'yellow', 'red')),
+    PRIMARY KEY (model, method, confidence, ticker, year)
+);
+
+-- ---------------------------------------------------------------------
+-- 20. Diebold-Mariano tests on the daily average quantile loss, each model
+--     against a reference (HAR-X with the same method).
+--     loss_vs_reference: relative difference, negative = better VaR.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS var_tests (
+    model              TEXT NOT NULL,
+    method             TEXT NOT NULL,
+    confidence         SMALLINT NOT NULL,
+    reference          TEXT NOT NULL,
+    n_dates            INTEGER NOT NULL,
+    quantile_loss      DOUBLE PRECISION NOT NULL,
+    loss_vs_reference  DOUBLE PRECISION NOT NULL,
+    dm_stat            DOUBLE PRECISION,
+    p_value            DOUBLE PRECISION,
+    PRIMARY KEY (model, method, confidence)
+);
+
+-- Overall result of each VaR: violation rate, average size, and the share of
+-- the series that pass each test at the 5% level
+CREATE OR REPLACE VIEW var_backtest_overall AS
+SELECT b.model,
+       b.method,
+       b.confidence,
+       m.family,
+       count(*)                                              AS n_series,
+       sum(b.n)                                              AS n,
+       sum(b.violations)                                     AS violations,
+       sum(b.violations)::double precision / sum(b.n)        AS violation_rate,
+       (1 - b.confidence / 100.0)::double precision          AS expected_rate,
+       sum(b.mean_var * b.n) / sum(b.n)                      AS mean_var,
+       sum(b.quantile_loss * b.n) / sum(b.n)                 AS quantile_loss,
+       avg((b.kupiec_p >= 0.05)::int)::double precision        AS pass_kupiec,
+       avg((b.independence_p >= 0.05)::int)::double precision  AS pass_independence,
+       avg((b.cond_coverage_p >= 0.05)::int)::double precision AS pass_cond_coverage
+FROM var_backtest b
+LEFT JOIN models m USING (model)
+GROUP BY b.model, b.method, b.confidence, m.family
+ORDER BY b.confidence, b.method, quantile_loss;
