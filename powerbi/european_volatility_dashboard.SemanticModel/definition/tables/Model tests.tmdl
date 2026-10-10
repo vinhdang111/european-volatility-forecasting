@@ -1,0 +1,96 @@
+table 'Model tests'
+	lineageTag: 0ca80a43-b879-455a-be32-7fa8906a4ccb
+
+	measure 'Full-sample QLIKE vs HAR-X' = ```
+			
+			        SELECTEDVALUE ( 'Model tests'[qlike_vs_harx] )
+			```
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: be6dc1ba-eb97-4cda-a4f5-07efcbec5dd0
+
+	measure 'DM significance' = ```
+			
+			        SELECTEDVALUE ( 'Model tests'[significance] )
+			```
+		lineageTag: d83413a4-6adf-4864-af2d-fec06bf529c0
+
+	measure 'In confidence set' = ```
+			
+			        SELECTEDVALUE ( 'Model tests'[in_confidence_set] )
+			```
+		lineageTag: d9ad9cd9-8b6b-40da-bbe5-5998258ff464
+
+	column model
+		dataType: string
+		lineageTag: b78faf22-6b8d-43b4-8ad0-7c1462e50b6d
+		summarizeBy: none
+		sourceColumn: model
+
+		annotation SummarizationSetBy = Automatic
+
+	column horizon
+		dataType: int64
+		formatString: 0
+		lineageTag: 9172e6e0-ff14-4a7e-ba30-bf0fac0a6ae6
+		summarizeBy: none
+		sourceColumn: horizon
+
+		annotation SummarizationSetBy = Automatic
+
+	column qlike
+		dataType: double
+		lineageTag: fa5ba202-f7e8-4b4a-9eb7-9d024095ce93
+		summarizeBy: sum
+		sourceColumn: qlike
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column qlike_vs_harx
+		dataType: double
+		lineageTag: ae259ed3-39df-4c45-93d0-a6ca9da4bdd2
+		summarizeBy: sum
+		sourceColumn: qlike_vs_harx
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column p_value
+		dataType: double
+		lineageTag: ef5842b6-4df7-4f61-ae9b-56c5527034fb
+		summarizeBy: sum
+		sourceColumn: p_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column significance
+		dataType: string
+		lineageTag: 9fbd17b1-88e1-45c7-862c-22858e61e975
+		summarizeBy: none
+		sourceColumn: significance
+
+		annotation SummarizationSetBy = Automatic
+
+	column in_confidence_set
+		dataType: string
+		lineageTag: 59325060-65b1-4d8f-87f7-6209f1082a46
+		summarizeBy: none
+		sourceColumn: in_confidence_set
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Model tests' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_model_tests = Source{[Schema="public",Item="pbi_model_tests"]}[Data]
+				in
+				    public_pbi_model_tests
+
+	annotation PBI_ResultType = Table
+

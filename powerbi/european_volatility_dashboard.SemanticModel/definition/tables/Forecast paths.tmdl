@@ -1,0 +1,159 @@
+table 'Forecast paths'
+	lineageTag: 1f00c6c3-aeea-4490-a0ca-64feb8995151
+
+	measure 'Volatility (%)' = ```
+			
+			        AVERAGE ( 'Forecast paths'[vol_pct] )
+			```
+		formatString: 0.0
+		lineageTag: 64ae6003-fe6c-40c5-89e0-ce73f24a609c
+
+	measure 'QLIKE (period)' = ```
+			
+			        AVERAGEX (
+			            'Forecast paths',
+			            VAR ratio = DIVIDE ( 'Forecast paths'[realised_pct] ^ 2, 'Forecast paths'[vol_pct] ^ 2 )
+			            RETURN ratio - LN ( ratio ) - 1
+			        )
+			```
+		formatString: 0.000
+		lineageTag: 0996d904-24dc-4f1f-84a7-b4a4ba8b9b9a
+
+	measure 'QLIKE vs HAR-X (period)' = ```
+			
+			        VAR harx =
+			            CALCULATE (
+			                [QLIKE (period)],
+			                REMOVEFILTERS ( 'Forecast paths'[line], 'Forecast paths'[line_order] ),
+			                'Forecast paths'[line] = "HAR-X"
+			            )
+			        RETURN
+			            IF ( NOT ISBLANK ( [QLIKE (period)] ), DIVIDE ( [QLIKE (period)], harx ) - 1 )
+			```
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 079800eb-538a-4479-84ab-9525e3352b56
+
+	measure 'Peak volatility (%)' = ```
+			
+			        MAX ( 'Forecast paths'[vol_pct] )
+			```
+		formatString: 0.0
+		lineageTag: c5849367-e7e4-53b8-a14d-7ca7a99c7be5
+
+	measure 'QLIKE vs best (period)' = ```
+			
+			        VAR best =
+			            CALCULATE (
+			                MINX (
+			                    FILTER ( VALUES ( 'Forecast paths'[line] ), 'Forecast paths'[line] <> "Realised" ),
+			                    CALCULATE ( [QLIKE (period)] )
+			                ),
+			                REMOVEFILTERS ( 'Forecast paths'[line], 'Forecast paths'[line_order] )
+			            )
+			        RETURN
+			            IF ( NOT ISBLANK ( [QLIKE (period)] ), DIVIDE ( [QLIKE (period)], best ) - 1 )
+			```
+		formatString: +0.0%;-0.0%;0.0%
+		lineageTag: ef76da93-cabc-5a54-9f29-28b2a3617651
+
+	measure 'Best forecast (period)' = ```
+			
+			        VAR scores =
+			            CALCULATETABLE (
+			                FILTER (
+			                    ADDCOLUMNS ( VALUES ( 'Forecast paths'[line] ), "@qlike", CALCULATE ( [QLIKE (period)] ) ),
+			                    'Forecast paths'[line] <> "Realised" && NOT ISBLANK ( [@qlike] )
+			                ),
+			                REMOVEFILTERS ( 'Forecast paths'[line], 'Forecast paths'[line_order] )
+			            )
+			        RETURN
+			            MAXX ( TOPN ( 1, scores, [@qlike], ASC ), 'Forecast paths'[line] )
+			```
+		lineageTag: e884d5ef-acb6-579e-9b3c-bd147d0002af
+
+	measure 'Forecast bias (pts)' = ```
+			
+			        AVERAGEX ( 'Forecast paths', 'Forecast paths'[vol_pct] - 'Forecast paths'[realised_pct] )
+			```
+		formatString: +0.0;-0.0;0.0
+		lineageTag: e5a8952a-5e69-5a29-9342-955e0082889e
+
+	column ticker
+		dataType: string
+		lineageTag: dc0e69c3-15b9-49f9-be00-28b9e8b611c1
+		summarizeBy: none
+		sourceColumn: ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 713a89eb-25c1-43ce-83d9-022715660734
+		summarizeBy: none
+		sourceColumn: date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column horizon
+		dataType: int64
+		formatString: 0
+		lineageTag: c02d7f05-e31f-4e77-a328-3179428e17a2
+		summarizeBy: none
+		sourceColumn: horizon
+
+		annotation SummarizationSetBy = Automatic
+
+	column line
+		dataType: string
+		lineageTag: 9b3f5614-c87c-499d-af29-74d946bb32f5
+		summarizeBy: none
+		sourceColumn: line
+		sortByColumn: line_order
+
+		changedProperty = SortByColumn
+
+		annotation SummarizationSetBy = Automatic
+
+	column line_order
+		dataType: int64
+		formatString: 0
+		lineageTag: 7c958239-2662-4444-8220-b8fcbfdf93c5
+		summarizeBy: sum
+		sourceColumn: line_order
+
+		annotation SummarizationSetBy = Automatic
+
+	column vol_pct
+		dataType: double
+		lineageTag: 822bfee2-e6af-4613-8e84-e05651ebad21
+		summarizeBy: sum
+		sourceColumn: vol_pct
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column realised_pct
+		dataType: double
+		lineageTag: a3435e1b-73c8-4603-b8d8-9c4a382dd262
+		summarizeBy: sum
+		sourceColumn: realised_pct
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Forecast paths' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_forecast_paths = Source{[Schema="public",Item="pbi_forecast_paths"]}[Data]
+				in
+				    public_pbi_forecast_paths
+
+	annotation PBI_ResultType = Table
+

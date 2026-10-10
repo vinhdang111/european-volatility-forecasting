@@ -1,0 +1,43 @@
+table Horizons
+	lineageTag: e4d869ac-5a3c-4b7c-87e5-f470a9831211
+
+	column horizon
+		dataType: int64
+		formatString: 0
+		lineageTag: bf2c74a7-8624-43dc-bc9f-efca78805ecf
+		summarizeBy: none
+		sourceColumn: horizon
+
+		annotation SummarizationSetBy = Automatic
+
+	column horizon_label
+		dataType: string
+		lineageTag: ae17debc-150f-42ed-867e-38f21f81fd22
+		summarizeBy: none
+		sourceColumn: horizon_label
+		sortByColumn: horizon_order
+
+		changedProperty = SortByColumn
+
+		annotation SummarizationSetBy = Automatic
+
+	column horizon_order
+		dataType: int64
+		formatString: 0
+		lineageTag: 06ae90bb-197b-424c-abcd-a04184defbcd
+		summarizeBy: sum
+		sourceColumn: horizon_order
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Horizons = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_horizons = Source{[Schema="public",Item="pbi_horizons"]}[Data]
+				in
+				    public_pbi_horizons
+
+	annotation PBI_ResultType = Table
+

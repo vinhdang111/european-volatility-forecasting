@@ -1,0 +1,62 @@
+table Series
+	lineageTag: c257b492-5d68-47d8-abdc-1f321bda3fbf
+
+	column ticker
+		dataType: string
+		lineageTag: 784ef8e4-6898-4401-8c10-8a7652b5eb15
+		summarizeBy: none
+		sourceColumn: ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column name
+		dataType: string
+		lineageTag: ebf23714-e03a-41fe-b070-f25669644d62
+		summarizeBy: none
+		sourceColumn: name
+
+		annotation SummarizationSetBy = Automatic
+
+	column series_label
+		dataType: string
+		lineageTag: 6eedad4c-8e56-4761-bcb6-fc9effbb5e79
+		summarizeBy: none
+		sourceColumn: series_label
+
+		annotation SummarizationSetBy = Automatic
+
+	column asset_type
+		dataType: string
+		lineageTag: ca68db2c-0f25-4dcf-84d5-25bf04eb2154
+		summarizeBy: none
+		sourceColumn: asset_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column country
+		dataType: string
+		lineageTag: 11d45c5c-1557-46cb-b7ad-07645bb11651
+		summarizeBy: none
+		sourceColumn: country
+
+		annotation SummarizationSetBy = Automatic
+
+	column sector
+		dataType: string
+		lineageTag: 8f890431-5ad6-4576-b2ec-b410206ef901
+		summarizeBy: none
+		sourceColumn: sector
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Series = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_series = Source{[Schema="public",Item="pbi_series"]}[Data]
+				in
+				    public_pbi_series
+
+	annotation PBI_ResultType = Table
+

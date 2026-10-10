@@ -37,3 +37,6 @@ env/
 Thumbs.db
 .vscode/
 .idea/
+
+# Power BI project: local settings and the cache of imported data (rebuilt by Refresh)
+powerbi/**/.pbi/

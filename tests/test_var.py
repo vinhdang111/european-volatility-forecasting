@@ -227,3 +227,10 @@ def test_run_produces_every_result_table_on_the_same_sample():
     reference = tests[tests["model"] == "har_x"]
     assert (reference["loss_vs_reference"] == 0).all() and reference["p_value"].isna().all()
     assert (tests.loc[tests["model"] == "naive", "loss_vs_reference"] > 0).all()                 # ignoring volatility costs
+
+    daily = tables["var_daily"]
+    assert len(daily) == 2 * yearly.query("model == 'har_x' and method == 'empirical' and confidence == 99")["n"].sum()
+    assert daily["var_har_x"].notna().all() and daily["var_ensemble_mean"].isna().all()       # no ensemble in this test
+    hits = (daily["ret"] < -daily["var_har_x"]).groupby(daily["confidence"]).sum()
+    expected = series[(series["model"] == "har_x") & (series["method"] == "empirical")].groupby("confidence")["violations"].sum()
+    assert (hits == expected).all()                                        # same VaR as in the backtest

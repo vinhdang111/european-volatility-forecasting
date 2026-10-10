@@ -1,0 +1,166 @@
+table 'VaR daily'
+	lineageTag: 35f14e65-4a1f-4a67-83ba-19bd491ae849
+
+	measure 'Return (%)' = ```
+			
+			        AVERAGE ( 'VaR daily'[return_pct] )
+			```
+		formatString: 0.0
+		lineageTag: 3ec08a24-0ac1-43ef-8120-b86d9c4d00e9
+
+	measure 'VaR limit HAR-X' = ```
+			
+			        - AVERAGE ( 'VaR daily'[var_har_x_pct] )
+			```
+		formatString: 0.0
+		lineageTag: b3a1be82-7221-4c96-ad23-13ccf8ca092f
+
+	measure 'VaR limit ensemble' = ```
+			
+			        - AVERAGE ( 'VaR daily'[var_ensemble_pct] )
+			```
+		formatString: 0.0
+		lineageTag: 946dd1b6-0946-40a6-95ee-3bea096e0a52
+
+	measure 'VaR limit historical simulation' = ```
+			
+			        - AVERAGE ( 'VaR daily'[var_historical_pct] )
+			```
+		formatString: 0.0
+		lineageTag: 6343d21b-c8e7-4d19-8c82-232f9af4bd32
+
+	measure Days = ```
+			
+			        COUNTROWS ( 'VaR daily' )
+			```
+		formatString: 0
+		lineageTag: 44ec9271-f8f9-4070-8b5c-0901427eb824
+
+	measure 'Expected violations' = ```
+			
+			        [Days] * [Promised rate]
+			```
+		formatString: 0.0
+		lineageTag: 026ae232-5720-48fd-9b54-130519218852
+
+	measure 'Violations HAR-X' = ```
+			
+			        SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_har_x_pct], 1, 0 ) )
+			```
+		formatString: 0
+		lineageTag: 09871534-0559-4c1e-bdca-0428cab83bb7
+
+	measure 'Violations ensemble' = ```
+			
+			        SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_ensemble_pct], 1, 0 ) )
+			```
+		formatString: 0
+		lineageTag: 02eae008-5dcf-4e9d-a628-63c8b3f7139e
+
+	measure 'Violations historical simulation' = ```
+			
+			        SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_historical_pct], 1, 0 ) )
+			```
+		formatString: 0
+		lineageTag: b08d2c5b-b9c1-459d-851d-183d6911422b
+
+	measure 'Average VaR HAR-X (%)' = ```
+			
+			        AVERAGE ( 'VaR daily'[var_har_x_pct] )
+			```
+		formatString: 0.00
+		lineageTag: 73469fea-a924-47aa-a179-fd09c852cf49
+
+	measure 'Average VaR ensemble (%)' = ```
+			
+			        AVERAGE ( 'VaR daily'[var_ensemble_pct] )
+			```
+		formatString: 0.00
+		lineageTag: e7175d95-a3a4-47d7-9ed8-0e36bb0b1d37
+
+	measure 'Average VaR historical simulation (%)' = ```
+			
+			        AVERAGE ( 'VaR daily'[var_historical_pct] )
+			```
+		formatString: 0.00
+		lineageTag: 9ade74ea-64d7-46bc-a1cc-ea012321a6f6
+
+	column ticker
+		dataType: string
+		lineageTag: 84472e10-b989-489c-8947-d6a2ab4ef98b
+		summarizeBy: none
+		sourceColumn: ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: eec97562-68a6-47ba-a95a-dffb06e296ad
+		summarizeBy: none
+		sourceColumn: date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column confidence
+		dataType: int64
+		formatString: 0
+		lineageTag: 15b02298-c71c-4d9a-a0cf-c4424b1cccac
+		summarizeBy: none
+		sourceColumn: confidence
+
+		annotation SummarizationSetBy = Automatic
+
+	column return_pct
+		dataType: double
+		lineageTag: 780c0a70-fcb1-4b7d-bf35-dd81f05d4b46
+		summarizeBy: sum
+		sourceColumn: return_pct
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column var_har_x_pct
+		dataType: double
+		lineageTag: b51657ca-f9f9-4959-8296-da07ecb4bff7
+		summarizeBy: sum
+		sourceColumn: var_har_x_pct
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column var_ensemble_pct
+		dataType: double
+		lineageTag: 6e2158ce-e80b-471d-986c-ac75c73dfb1b
+		summarizeBy: sum
+		sourceColumn: var_ensemble_pct
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column var_historical_pct
+		dataType: double
+		lineageTag: 3ca161fb-6297-494f-a31b-c03ec6c2f74f
+		summarizeBy: sum
+		sourceColumn: var_historical_pct
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'VaR daily' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_var_daily = Source{[Schema="public",Item="pbi_var_daily"]}[Data]
+				in
+				    public_pbi_var_daily
+
+	annotation PBI_ResultType = Table
+

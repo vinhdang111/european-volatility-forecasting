@@ -1,0 +1,374 @@
+// =====================================================================
+// DAX measures of the dashboard (Data Analysis Expressions: the formula
+// language of Power BI). Each block says in which table to create the
+// measure: select the table in the Data pane, then "New measure", and
+// paste the formula. Table names are the ones given in powerbi/README.md.
+// =====================================================================
+
+
+// ---------------------------------------------------------------------
+// Table: Model scores   (page 1)
+// ---------------------------------------------------------------------
+
+// Average QLIKE, weighted by the number of forecasts. Format: decimal, 3 places.
+Mean QLIKE =
+DIVIDE (
+    SUMX ( 'Model scores', 'Model scores'[qlike] * 'Model scores'[n] ),
+    SUM ( 'Model scores'[n] )
+)
+
+// QLIKE of HAR-X under the same filters (horizon, series, years). Format: 3 places.
+QLIKE HAR-X =
+CALCULATE ( [Mean QLIKE], REMOVEFILTERS ( 'Models' ), 'Models'[model] = "har_x" )
+
+// Relative difference with HAR-X: negative = better than HAR-X. Format: percentage, 1 place.
+QLIKE vs HAR-X =
+IF ( NOT ISBLANK ( [Mean QLIKE] ), DIVIDE ( [Mean QLIKE], [QLIKE HAR-X] ) - 1 )
+
+// Average error in annualised volatility points. Format: decimal, 2 places.
+MAE (vol points) =
+DIVIDE (
+    SUMX ( 'Model scores', 'Model scores'[mae_vol] * 'Model scores'[n] ),
+    SUM ( 'Model scores'[n] )
+)
+
+// Lowest QLIKE among the five baselines. Format: 3 places.
+QLIKE best baseline =
+MINX ( FILTER ( ALL ( 'Models' ), 'Models'[family] = "baseline" ), CALCULATE ( [Mean QLIKE] ) )
+
+// Lowest QLIKE among all models, whatever model the visual shows. Format: 3 places.
+QLIKE best model =
+MINX ( ALL ( 'Models' ), CALCULATE ( [Mean QLIKE] ) )
+
+// Gap to the best model under the same filters (horizon, year): 0% = best. Colours the ranking
+// and the heatmap by year. Format: +0.0%;-0.0%;0.0%
+QLIKE vs best model =
+IF ( NOT ISBLANK ( [Mean QLIKE] ), DIVIDE ( [Mean QLIKE], [QLIKE best model] ) - 1 )
+
+// Lowest QLIKE among the models of a family (bar chart by family). Format: 3 places.
+Best QLIKE in group =
+MINX ( VALUES ( 'Models'[model] ), CALCULATE ( [Mean QLIKE] ) )
+
+// Format: +0.0%;-0.0%;0.0%
+Best in group vs best model =
+IF ( NOT ISBLANK ( [Best QLIKE in group] ), DIVIDE ( [Best QLIKE in group], [QLIKE best model] ) - 1 )
+
+// Name of the model with the lowest mean absolute error (card on page 1).
+Best model (MAE) =
+VAR scores =
+    FILTER (
+        ADDCOLUMNS ( ALL ( 'Models'[model_label] ), "@mae", CALCULATE ( [MAE (vol points)] ) ),
+        NOT ISBLANK ( [@mae] )
+    )
+RETURN
+    MAXX ( TOPN ( 1, scores, [@mae], ASC ), 'Models'[model_label] )
+
+// QLIKE of the model in its worst test year, relative to HAR-X (Summary page). Format: +0%;-0%;0%
+Worst year vs HAR-X =
+MAXX ( VALUES ( 'Model scores'[test_year] ), [QLIKE vs HAR-X] )
+
+// Number of test years in which the model is one of the 3 most accurate of the 15 (Summary page). Format: whole number.
+Years in top 3 =
+SUMX (
+    VALUES ( 'Model scores'[test_year] ),
+    VAR position =
+        RANKX (
+            FILTER ( ALL ( 'Models' ), NOT ISBLANK ( CALCULATE ( [Mean QLIKE] ) ) ),
+            CALCULATE ( [Mean QLIKE] ),
+            [Mean QLIKE],
+            ASC
+        )
+    RETURN IF ( position <= 3, 1, 0 )
+)
+
+// Gap to the model with the lowest MAE: 0% = most accurate. Colours the MAE bar chart. Format: +0.0%;-0.0%;0.0%
+MAE vs best model =
+IF (
+    NOT ISBLANK ( [MAE (vol points)] ),
+    DIVIDE ( [MAE (vol points)], MINX ( ALL ( 'Models' ), CALCULATE ( [MAE (vol points)] ) ) ) - 1
+)
+
+// Name of the model with the lowest QLIKE (card on page 1).
+Best model =
+VAR scores =
+    FILTER (
+        ADDCOLUMNS ( ALL ( 'Models'[model_label] ), "@qlike", CALCULATE ( [Mean QLIKE] ) ),
+        NOT ISBLANK ( [@qlike] )
+    )
+RETURN
+    MAXX ( TOPN ( 1, scores, [@qlike], ASC ), 'Models'[model_label] )
+
+// Format: percentage, 1 place.
+Best model vs HAR-X =
+DIVIDE ( [QLIKE best model], [QLIKE HAR-X] ) - 1
+
+// Format: percentage, 0 places.
+Best model vs best baseline =
+DIVIDE ( [QLIKE best model], [QLIKE best baseline] ) - 1
+
+// Number of series and of test years in the current selection (cards).
+Series count = DISTINCTCOUNT ( 'Model scores'[ticker] )
+Test year count = DISTINCTCOUNT ( 'Model scores'[test_year] )
+
+
+// ---------------------------------------------------------------------
+// Table: Model tests   (full-sample tests; not shown on the three pages,
+// available for a significance table or tooltip)
+// ---------------------------------------------------------------------
+
+// Format: percentage, 1 place.
+Full-sample QLIKE vs HAR-X = SELECTEDVALUE ( 'Model tests'[qlike_vs_harx] )
+
+DM significance = SELECTEDVALUE ( 'Model tests'[significance] )
+
+In confidence set = SELECTEDVALUE ( 'Model tests'[in_confidence_set] )
+
+
+// ---------------------------------------------------------------------
+// Table: Regime scores   (page 1: calm and stress periods)
+// ---------------------------------------------------------------------
+
+// QLIKE in calm periods, weighted by the number of forecasts. Format: 3 places.
+QLIKE calm =
+CALCULATE (
+    DIVIDE ( SUMX ( 'Regime scores', 'Regime scores'[qlike] * 'Regime scores'[n] ), SUM ( 'Regime scores'[n] ) ),
+    'Regime scores'[regime] = "Calm periods"
+)
+
+// QLIKE in stress periods (the crises of src/viz.py). Format: 3 places.
+QLIKE stress =
+CALCULATE (
+    DIVIDE ( SUMX ( 'Regime scores', 'Regime scores'[qlike] * 'Regime scores'[n] ), SUM ( 'Regime scores'[n] ) ),
+    'Regime scores'[regime] = "Stress periods"
+)
+
+// Rank among the 15 models (1 = best). Format: whole number.
+QLIKE calm rank =
+IF (
+    NOT ISBLANK ( [QLIKE calm] ),
+    RANKX (
+        FILTER ( ALL ( 'Models' ), NOT ISBLANK ( CALCULATE ( [QLIKE calm] ) ) ),
+        CALCULATE ( [QLIKE calm] ),
+        [QLIKE calm],
+        ASC
+    )
+)
+
+QLIKE stress rank =
+IF (
+    NOT ISBLANK ( [QLIKE stress] ),
+    RANKX (
+        FILTER ( ALL ( 'Models' ), NOT ISBLANK ( CALCULATE ( [QLIKE stress] ) ) ),
+        CALCULATE ( [QLIKE stress] ),
+        [QLIKE stress],
+        ASC
+    )
+)
+
+
+// ---------------------------------------------------------------------
+// Table: Forecast paths   (page 2)
+// ---------------------------------------------------------------------
+
+// Annualised volatility in percent (one row per date and line). Format: decimal, 1 place.
+Volatility (%) = AVERAGE ( 'Forecast paths'[vol_pct] )
+
+// QLIKE of each line against the realised volatility, over the selected period. Format: 3 places.
+QLIKE (period) =
+AVERAGEX (
+    'Forecast paths',
+    VAR ratio = DIVIDE ( 'Forecast paths'[realised_pct] ^ 2, 'Forecast paths'[vol_pct] ^ 2 )
+    RETURN ratio - LN ( ratio ) - 1
+)
+
+// Same, relative to HAR-X: negative = better than HAR-X in that period. Format: percentage, 1 place.
+QLIKE vs HAR-X (period) =
+VAR harx =
+    CALCULATE (
+        [QLIKE (period)],
+        REMOVEFILTERS ( 'Forecast paths'[line], 'Forecast paths'[line_order] ),
+        'Forecast paths'[line] = "HAR-X"
+    )
+RETURN
+    IF ( NOT ISBLANK ( [QLIKE (period)] ), DIVIDE ( [QLIKE (period)], harx ) - 1 )
+
+// Gap to the best of the five forecasts over the selected period: 0% = best. The line filters
+// are removed so that the bars always compare all five forecasts. Format: +0.0%;-0.0%;0.0%
+QLIKE vs best (period) =
+VAR best =
+    CALCULATE (
+        MINX (
+            FILTER ( VALUES ( 'Forecast paths'[line] ), 'Forecast paths'[line] <> "Realised" ),
+            CALCULATE ( [QLIKE (period)] )
+        ),
+        REMOVEFILTERS ( 'Forecast paths'[line], 'Forecast paths'[line_order] )
+    )
+RETURN
+    IF ( NOT ISBLANK ( [QLIKE (period)] ), DIVIDE ( [QLIKE (period)], best ) - 1 )
+
+// Name of the forecast with the lowest QLIKE over the selected period (card).
+Best forecast (period) =
+VAR scores =
+    CALCULATETABLE (
+        FILTER (
+            ADDCOLUMNS ( VALUES ( 'Forecast paths'[line] ), "@qlike", CALCULATE ( [QLIKE (period)] ) ),
+            'Forecast paths'[line] <> "Realised" && NOT ISBLANK ( [@qlike] )
+        ),
+        REMOVEFILTERS ( 'Forecast paths'[line], 'Forecast paths'[line_order] )
+    )
+RETURN
+    MAXX ( TOPN ( 1, scores, [@qlike], ASC ), 'Forecast paths'[line] )
+
+// Highest volatility over the period (card, filtered on the line "Realised"). Format: 1 place.
+Peak volatility (%) = MAX ( 'Forecast paths'[vol_pct] )
+
+// Average forecast minus realised, in volatility points: negative = forecasts too low. Format: +0.0;-0.0;0.0
+Forecast bias (pts) =
+AVERAGEX ( 'Forecast paths', 'Forecast paths'[vol_pct] - 'Forecast paths'[realised_pct] )
+
+
+// ---------------------------------------------------------------------
+// Table: VaR backtest   (page 3)
+// ---------------------------------------------------------------------
+
+// Share of days with a loss beyond the VaR. Format: percentage, 2 places.
+Violation rate =
+DIVIDE ( SUM ( 'VaR backtest'[violations] ), SUM ( 'VaR backtest'[n] ) )
+
+// 1% for the 99% VaR, 5% for the 95% VaR. Format: percentage, 0 places.
+Promised rate = SELECTEDVALUE ( 'Confidence'[promised_rate] )
+
+// Share of series whose number of violations passes the Kupiec test. Format: percentage, 0 places.
+Series passing Kupiec = AVERAGE ( 'VaR backtest'[passes_kupiec] )
+
+// Share of series whose violations do not cluster (Christoffersen test). Format: percentage, 0 places.
+Series without clustering = AVERAGE ( 'VaR backtest'[passes_independence] )
+
+// Average size of the VaR, in % of the position. Format: percentage, 2 places.
+Average VaR =
+DIVIDE (
+    SUMX ( 'VaR backtest', 'VaR backtest'[mean_var] * 'VaR backtest'[n] ),
+    SUM ( 'VaR backtest'[n] )
+)
+
+// Quantile loss in basis points (1 bp = 0.01%). Format: decimal, 2 places.
+Quantile loss (bp) =
+DIVIDE (
+    SUMX ( 'VaR backtest', 'VaR backtest'[quantile_loss] * 'VaR backtest'[n] ),
+    SUM ( 'VaR backtest'[n] )
+) * 10000
+
+// Relative to HAR-X with the empirical multiplier: negative = better VaR. Format: percentage, 1 place.
+Quantile loss vs HAR-X =
+VAR harx =
+    CALCULATE (
+        [Quantile loss (bp)],
+        REMOVEFILTERS ( 'Models' ),
+        'Models'[model] = "har_x",
+        'VaR backtest'[method] = "empirical"
+    )
+RETURN
+    IF ( NOT ISBLANK ( [Quantile loss (bp)] ), DIVIDE ( [Quantile loss (bp)], harx ) - 1 )
+
+// Gap to the model with the lowest quantile loss: 0% = best VaR. Colours the table and the scatter.
+// Format: +0.0%;-0.0%;0.0%
+Quantile loss vs best =
+IF (
+    NOT ISBLANK ( [Quantile loss (bp)] ),
+    DIVIDE ( [Quantile loss (bp)], MINX ( ALL ( 'Models' ), CALCULATE ( [Quantile loss (bp)] ) ) ) - 1
+)
+
+// Distance between the violation rate and the promised rate (0% = exactly on target). Format: 0%
+Violation gap =
+IF ( NOT ISBLANK ( [Violation rate] ), ABS ( DIVIDE ( [Violation rate], [Promised rate] ) - 1 ) )
+
+// Name of the best VaR model at the selected confidence level (card on page 3): among HAR-X and the models whose
+// quantile loss is significantly lower than HAR-X's (Diebold-Mariano test, p < 0.05), the one with the lowest
+// quantile loss. All companies and indices, whole test period; empirical multiplier, plus historical simulation.
+Best VaR model =
+VAR scores =
+    FILTER (
+        ADDCOLUMNS (
+            ALL ( 'Models'[model_label], 'Models'[model] ),
+            "@loss", CALCULATE ( [Quantile loss (bp)], 'VaR backtest'[method] IN { "empirical", "historical" } ),
+            "@gap", CALCULATE ( MAX ( 'VaR tests'[quantile_loss_vs_harx] ) ),
+            "@p", CALCULATE ( MAX ( 'VaR tests'[p_value] ) )
+        ),
+        NOT ISBLANK ( [@loss] )
+            && ( 'Models'[model] = "har_x" || ( NOT ISBLANK ( [@p] ) && [@gap] < 0 && [@p] < 0.05 ) )
+    )
+RETURN
+    IF ( HASONEVALUE ( 'Confidence'[confidence] ), MAXX ( TOPN ( 1, scores, [@loss], ASC ), 'Models'[model_label] ) )
+
+// Cards. Format: percentage, 2 places.
+Violation rate ensemble =
+CALCULATE ( [Violation rate], 'Models'[model] = "ensemble_mean", 'VaR backtest'[method] = "empirical" )
+
+Violation rate historical simulation =
+CALCULATE ( [Violation rate], 'Models'[model] = "historical_simulation" )
+
+Ensemble 99% VaR violations =
+CALCULATE ( [Violation rate ensemble], 'Confidence'[confidence] = 99 )
+
+
+// ---------------------------------------------------------------------
+// Table: VaR tests   (page 3: full-sample Diebold-Mariano test of the quantile loss)
+// ---------------------------------------------------------------------
+
+VaR significance = SELECTEDVALUE ( 'VaR tests'[significance] )
+
+
+// ---------------------------------------------------------------------
+// Table: VaR yearly   (page 3: Basel traffic light)
+// ---------------------------------------------------------------------
+
+// Format: whole number.
+Series-years = COUNTROWS ( 'VaR yearly' )
+
+// Share of the years spent in the green zone, used to sort the traffic light (best first). Format: percentage, 0 places.
+Green zone share =
+VAR all_years =
+    CALCULATE (
+        COUNTROWS ( 'VaR yearly' ),
+        REMOVEFILTERS ( 'VaR yearly'[zone_label], 'VaR yearly'[zone_order], 'VaR yearly'[zone] )
+    )
+VAR green =
+    CALCULATE (
+        COUNTROWS ( 'VaR yearly' ),
+        REMOVEFILTERS ( 'VaR yearly'[zone_label], 'VaR yearly'[zone_order], 'VaR yearly'[zone] ),
+        'VaR yearly'[zone] = "green"
+    )
+RETURN
+    DIVIDE ( green, all_years )
+
+
+// ---------------------------------------------------------------------
+// Table: VaR daily   (page 3)
+// ---------------------------------------------------------------------
+
+// Daily return in %. Format: decimal, 1 place.
+Return (%) = AVERAGE ( 'VaR daily'[return_pct] )
+
+// VaR limits drawn below zero (a loss larger than the limit is a violation). Format: decimal, 1 place.
+VaR limit HAR-X = - AVERAGE ( 'VaR daily'[var_har_x_pct] )
+VaR limit ensemble = - AVERAGE ( 'VaR daily'[var_ensemble_pct] )
+VaR limit historical simulation = - AVERAGE ( 'VaR daily'[var_historical_pct] )
+
+// Counts over the selected series and period. Format: whole number.
+Days = COUNTROWS ( 'VaR daily' )
+
+Expected violations = [Days] * [Promised rate]
+
+Violations HAR-X =
+SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_har_x_pct], 1, 0 ) )
+
+Violations ensemble =
+SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_ensemble_pct], 1, 0 ) )
+
+Violations historical simulation =
+SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_historical_pct], 1, 0 ) )
+
+// Average size of each limit over the period, in % of the position. Format: decimal, 2 places.
+Average VaR HAR-X (%) = AVERAGE ( 'VaR daily'[var_har_x_pct] )
+Average VaR ensemble (%) = AVERAGE ( 'VaR daily'[var_ensemble_pct] )
+Average VaR historical simulation (%) = AVERAGE ( 'VaR daily'[var_historical_pct] )

@@ -1,0 +1,41 @@
+table Confidence
+	lineageTag: 44ce3e88-75a4-45ac-8690-4625274afd0a
+
+	column confidence
+		dataType: int64
+		formatString: 0
+		lineageTag: da364ad1-409b-40a8-9091-3f687270cdad
+		summarizeBy: none
+		sourceColumn: confidence
+
+		annotation SummarizationSetBy = Automatic
+
+	column confidence_label
+		dataType: string
+		lineageTag: fffd8b70-389f-409a-b126-0ccbbe9909c5
+		summarizeBy: none
+		sourceColumn: confidence_label
+
+		annotation SummarizationSetBy = Automatic
+
+	column promised_rate
+		dataType: double
+		lineageTag: 86d059d1-816f-4455-87d0-e79c4793b032
+		summarizeBy: sum
+		sourceColumn: promised_rate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition Confidence = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_confidence = Source{[Schema="public",Item="pbi_confidence"]}[Data]
+				in
+				    public_pbi_confidence
+
+	annotation PBI_ResultType = Table
+

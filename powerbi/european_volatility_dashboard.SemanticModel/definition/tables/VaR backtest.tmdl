@@ -1,0 +1,242 @@
+table 'VaR backtest'
+	lineageTag: 248fc47c-2280-4368-a3ab-538d269d1a32
+
+	measure 'Violation rate' = ```
+			
+			        DIVIDE ( SUM ( 'VaR backtest'[violations] ), SUM ( 'VaR backtest'[n] ) )
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: a4923e2c-92bd-441a-9e94-43017edfd13b
+
+	measure 'Promised rate' = ```
+			
+			        SELECTEDVALUE ( 'Confidence'[promised_rate] )
+			```
+		formatString: 0%;-0%;0%
+		lineageTag: 9949705b-5fc0-4e8f-9005-6f8d5d0ef557
+
+	measure 'Series passing Kupiec' = ```
+			
+			        AVERAGE ( 'VaR backtest'[passes_kupiec] )
+			```
+		formatString: 0%;-0%;0%
+		lineageTag: 13bfeb3a-eb55-4333-8dc0-4da5cff11bb6
+
+	measure 'Series without clustering' = ```
+			
+			        AVERAGE ( 'VaR backtest'[passes_independence] )
+			```
+		formatString: 0%;-0%;0%
+		lineageTag: 461cb3d1-ea76-4d84-a484-d3bf957b5632
+
+	measure 'Average VaR' = ```
+			
+			        DIVIDE (
+			            SUMX ( 'VaR backtest', 'VaR backtest'[mean_var] * 'VaR backtest'[n] ),
+			            SUM ( 'VaR backtest'[n] )
+			        )
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 1af80e3a-c4ad-4bc7-aad2-4dfacf5e21b4
+
+	measure 'Quantile loss (bp)' = ```
+			
+			        DIVIDE (
+			            SUMX ( 'VaR backtest', 'VaR backtest'[quantile_loss] * 'VaR backtest'[n] ),
+			            SUM ( 'VaR backtest'[n] )
+			        ) * 10000
+			```
+		formatString: 0.00
+		lineageTag: 1f1c7a01-b9c0-4551-a0b8-74849994dd2c
+
+	measure 'Violation rate ensemble' = ```
+			
+			        CALCULATE ( [Violation rate], 'Models'[model] = "ensemble_mean", 'VaR backtest'[method] = "empirical" )
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 4016cc9e-95ac-431c-9b60-747a14e3b610
+
+	measure 'Violation rate historical simulation' = ```
+			
+			        CALCULATE ( [Violation rate], 'Models'[model] = "historical_simulation" )
+			```
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 3e35125a-cd15-453b-af29-3e83bbb0e656
+
+	measure 'Ensemble 99% VaR violations' = ```
+			
+			        CALCULATE ( [Violation rate ensemble], 'Confidence'[confidence] = 99 )
+			```
+		formatString: 0%;-0%;0%
+		lineageTag: 95adb4e9-fb3d-440c-be78-684840c196ce
+
+	measure 'Quantile loss vs HAR-X' = ```
+			
+			        VAR harx =
+			            CALCULATE (
+			                [Quantile loss (bp)],
+			                REMOVEFILTERS ( 'Models' ),
+			                'Models'[model] = "har_x",
+			                'VaR backtest'[method] = "empirical"
+			            )
+			        RETURN
+			            IF ( NOT ISBLANK ( [Quantile loss (bp)] ), DIVIDE ( [Quantile loss (bp)], harx ) - 1 )
+			```
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 143a2cfa-786a-420b-b9c5-d37ac3bbba5b
+
+	measure 'Quantile loss vs best' = ```
+			
+			        IF (
+			            NOT ISBLANK ( [Quantile loss (bp)] ),
+			            DIVIDE ( [Quantile loss (bp)], MINX ( ALL ( 'Models' ), CALCULATE ( [Quantile loss (bp)] ) ) ) - 1
+			        )
+			```
+		formatString: +0.0%;-0.0%;0.0%
+		lineageTag: 9d990f33-d450-59c9-bba9-c3e036ab1789
+
+	measure 'Violation gap' = ```
+			
+			        IF ( NOT ISBLANK ( [Violation rate] ), ABS ( DIVIDE ( [Violation rate], [Promised rate] ) - 1 ) )
+			```
+		formatString: 0%;0%;0%
+		lineageTag: 3b203b83-5e42-563f-88ad-2d1dddf9afca
+
+	measure 'Best VaR model' = ```
+			
+			        VAR scores =
+			            FILTER (
+			                ADDCOLUMNS (
+			                    ALL ( 'Models'[model_label], 'Models'[model] ),
+			                    "@loss", CALCULATE ( [Quantile loss (bp)], 'VaR backtest'[method] IN { "empirical", "historical" } ),
+			                    "@gap", CALCULATE ( MAX ( 'VaR tests'[quantile_loss_vs_harx] ) ),
+			                    "@p", CALCULATE ( MAX ( 'VaR tests'[p_value] ) )
+			                ),
+			                NOT ISBLANK ( [@loss] )
+			                    && ( 'Models'[model] = "har_x" || ( NOT ISBLANK ( [@p] ) && [@gap] < 0 && [@p] < 0.05 ) )
+			            )
+			        RETURN
+			            IF ( HASONEVALUE ( 'Confidence'[confidence] ), MAXX ( TOPN ( 1, scores, [@loss], ASC ), 'Models'[model_label] ) )
+			```
+		lineageTag: 2a77b588-6d3a-5353-879d-b8108ac840f4
+
+	column model
+		dataType: string
+		lineageTag: ecb6545b-8df4-4a22-ab80-11e28326895c
+		summarizeBy: none
+		sourceColumn: model
+
+		annotation SummarizationSetBy = Automatic
+
+	column method
+		dataType: string
+		lineageTag: ca6897fd-2d01-4e78-80d0-7642f164f013
+		summarizeBy: none
+		sourceColumn: method
+
+		annotation SummarizationSetBy = Automatic
+
+	column confidence
+		dataType: int64
+		formatString: 0
+		lineageTag: 311a7757-134d-4e9c-a696-1d4c281f3850
+		summarizeBy: none
+		sourceColumn: confidence
+
+		annotation SummarizationSetBy = Automatic
+
+	column ticker
+		dataType: string
+		lineageTag: 827af294-2a68-4a82-b800-476992811539
+		summarizeBy: none
+		sourceColumn: ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column n
+		dataType: int64
+		formatString: 0
+		lineageTag: c1e4c000-2c36-4c4c-b4be-14abb51ee97f
+		summarizeBy: sum
+		sourceColumn: n
+
+		annotation SummarizationSetBy = Automatic
+
+	column violations
+		dataType: int64
+		formatString: 0
+		lineageTag: 85528b10-6a7a-414a-af42-ad5ab9053d28
+		summarizeBy: sum
+		sourceColumn: violations
+
+		annotation SummarizationSetBy = Automatic
+
+	column mean_var
+		dataType: double
+		lineageTag: 14668b08-08ce-41a4-83d7-e330b7344604
+		summarizeBy: sum
+		sourceColumn: mean_var
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column quantile_loss
+		dataType: double
+		lineageTag: 61a8ccd2-8d4d-47bf-9289-a702cfe04064
+		summarizeBy: sum
+		sourceColumn: quantile_loss
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column kupiec_p
+		dataType: double
+		lineageTag: 4e57ba79-90b3-4462-8f73-701ac095a9e5
+		summarizeBy: sum
+		sourceColumn: kupiec_p
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column independence_p
+		dataType: double
+		lineageTag: c11b3050-16d4-4ddf-bb79-f79c5e3ab1a6
+		summarizeBy: sum
+		sourceColumn: independence_p
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column passes_kupiec
+		dataType: int64
+		formatString: 0
+		lineageTag: caf33f58-20ac-4750-aec0-0845d9c0b4ad
+		summarizeBy: sum
+		sourceColumn: passes_kupiec
+
+		annotation SummarizationSetBy = Automatic
+
+	column passes_independence
+		dataType: int64
+		formatString: 0
+		lineageTag: edeedb31-ad39-4817-825f-ba30e25937a8
+		summarizeBy: sum
+		sourceColumn: passes_independence
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'VaR backtest' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_var_backtest = Source{[Schema="public",Item="pbi_var_backtest"]}[Data]
+				in
+				    public_pbi_var_backtest
+
+	annotation PBI_ResultType = Table
+

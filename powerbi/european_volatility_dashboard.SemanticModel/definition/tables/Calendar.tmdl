@@ -1,0 +1,65 @@
+table Calendar
+	lineageTag: ba6c2b30-61ad-41bc-a00b-fc75269ed9eb
+	dataCategory: Time
+
+	column date
+		dataType: dateTime
+		isKey
+		formatString: Long Date
+		lineageTag: 899393ae-3028-46a0-a9ef-a3e15bbf0adb
+		summarizeBy: none
+		sourceColumn: date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column year
+		dataType: int64
+		formatString: 0
+		lineageTag: 32cebf59-4e89-4910-9c38-7053dce687fc
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column month
+		dataType: int64
+		formatString: 0
+		lineageTag: 585351dd-aef9-4d91-8e19-db154972c850
+		summarizeBy: sum
+		sourceColumn: month
+
+		annotation SummarizationSetBy = Automatic
+
+	column month_label
+		dataType: string
+		lineageTag: d6c259f3-d815-480c-91c0-e68a8a403bf2
+		summarizeBy: none
+		sourceColumn: month_label
+		sortByColumn: month_key
+
+		changedProperty = SortByColumn
+
+		annotation SummarizationSetBy = Automatic
+
+	column month_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 5cabbeaa-67b1-43cc-b012-d6cce769743b
+		summarizeBy: sum
+		sourceColumn: month_key
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Calendar = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_calendar = Source{[Schema="public",Item="pbi_calendar"]}[Data]
+				in
+				    public_pbi_calendar
+
+	annotation PBI_ResultType = Table
+

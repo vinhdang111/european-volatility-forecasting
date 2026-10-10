@@ -1,0 +1,31 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+	valueFilterBehavior: independent
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_QueryOrder = ["Calendar","Confidence","Forecast paths","Horizons","Model scores","Model tests","Models","Regime scores","Series","VaR backtest","VaR daily","VaR tests","VaR yearly"]
+
+annotation PBI_ProTooling = ["DaxQueryView_Desktop","DevMode"]
+
+ref table Calendar
+ref table Confidence
+ref table 'Forecast paths'
+ref table Horizons
+ref table 'Model scores'
+ref table 'Model tests'
+ref table Models
+ref table Series
+ref table 'VaR backtest'
+ref table 'VaR daily'
+ref table 'VaR tests'
+ref table 'VaR yearly'
+ref table 'Regime scores'
+
+ref cultureInfo en-US
+

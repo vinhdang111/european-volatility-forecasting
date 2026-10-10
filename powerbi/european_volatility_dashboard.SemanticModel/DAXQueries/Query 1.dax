@@ -1,0 +1,164 @@
+
+DEFINE
+    MEASURE 'Model scores'[Mean QLIKE] =
+        DIVIDE (
+            SUMX ( 'Model scores', 'Model scores'[qlike] * 'Model scores'[n] ),
+            SUM ( 'Model scores'[n] )
+        )
+
+    MEASURE 'Model scores'[QLIKE HAR-X] =
+        CALCULATE ( [Mean QLIKE], REMOVEFILTERS ( 'Models' ), 'Models'[model] = "har_x" )
+
+    MEASURE 'Model scores'[QLIKE vs HAR-X] =
+        IF ( NOT ISBLANK ( [Mean QLIKE] ), DIVIDE ( [Mean QLIKE], [QLIKE HAR-X] ) - 1 )
+
+    MEASURE 'Model scores'[MAE (vol points)] =
+        DIVIDE (
+            SUMX ( 'Model scores', 'Model scores'[mae_vol] * 'Model scores'[n] ),
+            SUM ( 'Model scores'[n] )
+        )
+
+    MEASURE 'Model scores'[QLIKE best baseline] =
+        MINX ( FILTER ( ALL ( 'Models' ), 'Models'[family] = "baseline" ), CALCULATE ( [Mean QLIKE] ) )
+
+    MEASURE 'Model scores'[QLIKE best model] =
+        MINX ( ALL ( 'Models'[model] ), CALCULATE ( [Mean QLIKE] ) )
+
+    MEASURE 'Model scores'[Best model] =
+        VAR scores =
+            FILTER (
+                ADDCOLUMNS ( ALL ( 'Models'[model_label] ), "@qlike", CALCULATE ( [Mean QLIKE] ) ),
+                NOT ISBLANK ( [@qlike] )
+            )
+        RETURN
+            MAXX ( TOPN ( 1, scores, [@qlike], ASC ), 'Models'[model_label] )
+
+    MEASURE 'Model scores'[Best model vs HAR-X] =
+        DIVIDE ( [QLIKE best model], [QLIKE HAR-X] ) - 1
+
+    MEASURE 'Model scores'[Best model vs best baseline] =
+        DIVIDE ( [QLIKE best model], [QLIKE best baseline] ) - 1
+
+    MEASURE 'Model scores'[Series count] =
+        DISTINCTCOUNT ( 'Model scores'[ticker] )
+
+    MEASURE 'Model scores'[Test year count] =
+        DISTINCTCOUNT ( 'Model scores'[test_year] )
+
+    MEASURE 'Model tests'[Full-sample QLIKE vs HAR-X] =
+        SELECTEDVALUE ( 'Model tests'[qlike_vs_harx] )
+
+    MEASURE 'Model tests'[DM significance] =
+        SELECTEDVALUE ( 'Model tests'[significance] )
+
+    MEASURE 'Model tests'[In confidence set] =
+        SELECTEDVALUE ( 'Model tests'[in_confidence_set] )
+
+    MEASURE 'Forecast paths'[Volatility (%)] =
+        AVERAGE ( 'Forecast paths'[vol_pct] )
+
+    MEASURE 'Forecast paths'[QLIKE (period)] =
+        AVERAGEX (
+            'Forecast paths',
+            VAR ratio = DIVIDE ( 'Forecast paths'[realised_pct] ^ 2, 'Forecast paths'[vol_pct] ^ 2 )
+            RETURN ratio - LN ( ratio ) - 1
+        )
+
+    MEASURE 'Forecast paths'[QLIKE vs HAR-X (period)] =
+        VAR harx =
+            CALCULATE (
+                [QLIKE (period)],
+                REMOVEFILTERS ( 'Forecast paths'[line], 'Forecast paths'[line_order] ),
+                'Forecast paths'[line] = "HAR-X"
+            )
+        RETURN
+            IF ( NOT ISBLANK ( [QLIKE (period)] ), DIVIDE ( [QLIKE (period)], harx ) - 1 )
+
+    MEASURE 'VaR backtest'[Violation rate] =
+        DIVIDE ( SUM ( 'VaR backtest'[violations] ), SUM ( 'VaR backtest'[n] ) )
+
+    MEASURE 'VaR backtest'[Promised rate] =
+        SELECTEDVALUE ( 'Confidence'[promised_rate] )
+
+    MEASURE 'VaR backtest'[Series passing Kupiec] =
+        AVERAGE ( 'VaR backtest'[passes_kupiec] )
+
+    MEASURE 'VaR backtest'[Series without clustering] =
+        AVERAGE ( 'VaR backtest'[passes_independence] )
+
+    MEASURE 'VaR backtest'[Average VaR] =
+        DIVIDE (
+            SUMX ( 'VaR backtest', 'VaR backtest'[mean_var] * 'VaR backtest'[n] ),
+            SUM ( 'VaR backtest'[n] )
+        )
+
+    MEASURE 'VaR backtest'[Quantile loss (bp)] =
+        DIVIDE (
+            SUMX ( 'VaR backtest', 'VaR backtest'[quantile_loss] * 'VaR backtest'[n] ),
+            SUM ( 'VaR backtest'[n] )
+        ) * 10000
+
+    MEASURE 'VaR backtest'[Quantile loss vs HAR-X] =
+        VAR harx =
+            CALCULATE (
+                [Quantile loss (bp)],
+                REMOVEFILTERS ( 'Models' ),
+                'Models'[model] = "har_x",
+                'VaR backtest'[method] = "empirical"
+            )
+        RETURN
+            IF ( NOT ISBLANK ( [Quantile loss (bp)] ), DIVIDE ( [Quantile loss (bp)], harx ) - 1 )
+
+    MEASURE 'VaR backtest'[Violation rate ensemble] =
+        CALCULATE ( [Violation rate], 'Models'[model] = "ensemble_mean", 'VaR backtest'[method] = "empirical" )
+
+    MEASURE 'VaR backtest'[Violation rate historical simulation] =
+        CALCULATE ( [Violation rate], 'Models'[model] = "historical_simulation" )
+
+    MEASURE 'VaR backtest'[Ensemble 99% VaR violations] =
+        CALCULATE ( [Violation rate ensemble], 'Confidence'[confidence] = 99 )
+
+    MEASURE 'VaR tests'[VaR significance] =
+        SELECTEDVALUE ( 'VaR tests'[significance] )
+
+    MEASURE 'VaR yearly'[Series-years] =
+        COUNTROWS ( 'VaR yearly' )
+
+    MEASURE 'VaR daily'[Return (%)] =
+        AVERAGE ( 'VaR daily'[return_pct] )
+
+    MEASURE 'VaR daily'[VaR limit HAR-X] =
+        - AVERAGE ( 'VaR daily'[var_har_x_pct] )
+
+    MEASURE 'VaR daily'[VaR limit ensemble] =
+        - AVERAGE ( 'VaR daily'[var_ensemble_pct] )
+
+    MEASURE 'VaR daily'[VaR limit historical simulation] =
+        - AVERAGE ( 'VaR daily'[var_historical_pct] )
+
+    MEASURE 'VaR daily'[Days] =
+        COUNTROWS ( 'VaR daily' )
+
+    MEASURE 'VaR daily'[Expected violations] =
+        [Days] * [Promised rate]
+
+    MEASURE 'VaR daily'[Violations HAR-X] =
+        SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_har_x_pct], 1, 0 ) )
+
+    MEASURE 'VaR daily'[Violations ensemble] =
+        SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_ensemble_pct], 1, 0 ) )
+
+    MEASURE 'VaR daily'[Violations historical simulation] =
+        SUMX ( 'VaR daily', IF ( 'VaR daily'[return_pct] < - 'VaR daily'[var_historical_pct], 1, 0 ) )
+
+    MEASURE 'VaR daily'[Average VaR HAR-X (%)] =
+        AVERAGE ( 'VaR daily'[var_har_x_pct] )
+
+    MEASURE 'VaR daily'[Average VaR ensemble (%)] =
+        AVERAGE ( 'VaR daily'[var_ensemble_pct] )
+
+    MEASURE 'VaR daily'[Average VaR historical simulation (%)] =
+        AVERAGE ( 'VaR daily'[var_historical_pct] )
+
+EVALUATE
+SUMMARIZECOLUMNS ( 'Horizons'[horizon_label], "QLIKE HAR-X", [QLIKE HAR-X], "Best model", [Best model] )

@@ -493,6 +493,23 @@ CREATE TABLE IF NOT EXISTS var_tests (
     PRIMARY KEY (model, method, confidence)
 );
 
+-- ---------------------------------------------------------------------
+-- 21. Daily VaR of a few models, next to the return it had to cover
+--     (input of the Power BI dashboard). date = day of the return;
+--     var_* = VaR with the empirical multiplier (positive, 0.03 = 3%),
+--     var_historical_simulation = benchmark without a volatility model.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS var_daily (
+    ticker                     TEXT NOT NULL REFERENCES universe (ticker),
+    date                       DATE NOT NULL,
+    confidence                 SMALLINT NOT NULL CHECK (confidence IN (95, 99)),
+    ret                        DOUBLE PRECISION NOT NULL,
+    var_har_x                  DOUBLE PRECISION,
+    var_ensemble_mean          DOUBLE PRECISION,
+    var_historical_simulation  DOUBLE PRECISION,
+    PRIMARY KEY (ticker, date, confidence)
+);
+
 -- Overall result of each VaR: violation rate, average size, and the share of
 -- the series that pass each test at the 5% level
 CREATE OR REPLACE VIEW var_backtest_overall AS

@@ -1,0 +1,84 @@
+relationship 0458de6c-010a-455c-517c-cf664478d167
+	fromColumn: 'Model scores'.ticker
+	toColumn: Series.ticker
+
+relationship 6293a213-e4e2-c29f-a254-58928d131538
+	fromColumn: 'Forecast paths'.ticker
+	toColumn: Series.ticker
+
+relationship f5bc5500-e31c-e143-59f4-a075f9e9c5c3
+	fromColumn: 'VaR backtest'.confidence
+	toColumn: Confidence.confidence
+
+relationship 76c4b1c4-6a9c-9e5f-ba01-9253147447b9
+	fromColumn: 'VaR daily'.confidence
+	toColumn: Confidence.confidence
+
+relationship e0f8bf16-688b-e690-a450-0d03b258cc32
+	fromColumn: 'VaR tests'.confidence
+	toColumn: Confidence.confidence
+
+relationship 8054f399-9a14-75bd-593a-1b5bcb4ccc69
+	fromColumn: 'VaR yearly'.confidence
+	toColumn: Confidence.confidence
+
+relationship 776be474-8887-c58c-6905-d8d8beec5a16
+	fromColumn: 'VaR backtest'.ticker
+	toColumn: Series.ticker
+
+relationship f00b61c1-c170-bbb4-d029-7671a663a51f
+	fromColumn: 'VaR daily'.ticker
+	toColumn: Series.ticker
+
+relationship 2cab918c-6588-c85e-34fd-733897c20c7e
+	fromColumn: 'VaR yearly'.ticker
+	toColumn: Series.ticker
+
+relationship 1aca3944-9d49-9e03-adea-8508d2befc3e
+	fromColumn: 'Forecast paths'.horizon
+	toColumn: Horizons.horizon
+
+relationship 48af98d8-cd18-fd5b-6d7d-a2f2797dbc2c
+	fromColumn: 'Model scores'.horizon
+	toColumn: Horizons.horizon
+
+relationship b8aab090-ab67-d2e9-e338-79d9c2e55e7d
+	fromColumn: 'Model tests'.horizon
+	toColumn: Horizons.horizon
+
+relationship db02427a-c8f7-f096-3d39-0421362a1a42
+	fromColumn: 'Model scores'.model
+	toColumn: Models.model
+
+relationship 3c54c3fb-d5d9-ab05-1627-b8b095a1738b
+	fromColumn: 'Model tests'.model
+	toColumn: Models.model
+
+relationship 1df19553-124b-c1e5-9ed0-0530c091c3e6
+	fromColumn: 'VaR backtest'.model
+	toColumn: Models.model
+
+relationship 62043a7f-8168-1f44-44b2-2815662dbbd2
+	fromColumn: 'VaR tests'.model
+	toColumn: Models.model
+
+relationship 63077ef2-e2df-6104-65ef-011d05f2cc37
+	fromColumn: 'VaR yearly'.model
+	toColumn: Models.model
+
+relationship 40c275e4-b3f4-00ff-90e4-466db93427fc
+	fromColumn: 'Forecast paths'.date
+	toColumn: Calendar.date
+
+relationship 7fd3e6b3-748b-6c35-23a4-21ebce0ca09e
+	fromColumn: 'VaR daily'.date
+	toColumn: Calendar.date
+
+relationship eaf88e4e-9bde-56c9-ae1d-21c262bbb8c6
+	fromColumn: 'Regime scores'.model
+	toColumn: Models.model
+
+relationship 42cc338c-3fb8-57b6-a350-0e6b3b331cfd
+	fromColumn: 'Regime scores'.horizon
+	toColumn: Horizons.horizon
+

@@ -1,0 +1,232 @@
+table 'Model scores'
+	lineageTag: 6c1573bd-e56a-4c7c-9051-b95f3f039e91
+
+	measure 'Mean QLIKE' = ```
+			
+			        DIVIDE (
+			            SUMX ( 'Model scores', 'Model scores'[qlike] * 'Model scores'[n] ),
+			            SUM ( 'Model scores'[n] )
+			        )
+			```
+		formatString: 0.000
+		lineageTag: 196274fc-a5fd-48d0-8e94-18376c820749
+
+	measure 'QLIKE vs HAR-X' = ```
+			
+			        IF ( NOT ISBLANK ( [Mean QLIKE] ), DIVIDE ( [Mean QLIKE], [QLIKE HAR-X] ) - 1 )
+			```
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: a05a8783-bb5a-4449-a40e-e2aa1c6a6987
+
+	measure 'MAE (vol points)' = ```
+			
+			        DIVIDE (
+			            SUMX ( 'Model scores', 'Model scores'[mae_vol] * 'Model scores'[n] ),
+			            SUM ( 'Model scores'[n] )
+			        )
+			```
+		formatString: 0.00
+		lineageTag: be36567d-217c-4626-9925-b9369144a69d
+
+	measure 'QLIKE best model' = ```
+			
+			        MINX ( ALL ( 'Models' ), CALCULATE ( [Mean QLIKE] ) )
+			```
+		formatString: 0.000
+		lineageTag: 6ac67cd3-5a60-4ab9-a528-2768513a85d5
+
+	measure 'Best model' = ```
+			
+			        VAR scores =
+			            FILTER (
+			                ADDCOLUMNS ( ALL ( 'Models'[model_label] ), "@qlike", CALCULATE ( [Mean QLIKE] ) ),
+			                NOT ISBLANK ( [@qlike] )
+			            )
+			        RETURN
+			            MAXX ( TOPN ( 1, scores, [@qlike], ASC ), 'Models'[model_label] )
+			```
+		lineageTag: 0d82a70d-fa85-4381-bb4a-e33bcab2a64f
+
+	measure 'Best model vs HAR-X' = ```
+			
+			        DIVIDE ( [QLIKE best model], [QLIKE HAR-X] ) - 1
+			```
+		formatString: 0.0%;-0.0%;0.0%
+		lineageTag: 30f232a9-3686-4315-af8d-a3528f49a66f
+
+	measure 'Best model vs best baseline' = ```
+			
+			        DIVIDE ( [QLIKE best model], [QLIKE best baseline] ) - 1
+			```
+		formatString: 0%;-0%;0%
+		lineageTag: c1157312-6912-4796-91df-b0e69c415197
+
+	measure 'Series count' = ```
+			
+			        DISTINCTCOUNT ( 'Model scores'[ticker] )
+			```
+		formatString: 0
+		lineageTag: 5fb2e8b1-7482-493e-95f8-f8f586755e7a
+
+	measure 'Test year count' = ```
+			
+			        DISTINCTCOUNT ( 'Model scores'[test_year] )
+			```
+		formatString: 0
+		lineageTag: df29c9a5-b797-4014-9bf6-c5f6c987983d
+
+	measure 'QLIKE HAR-X' = ```
+			
+			        CALCULATE ( [Mean QLIKE], REMOVEFILTERS ( 'Models' ), 'Models'[model] = "har_x" )
+			```
+		formatString: 0.000
+		lineageTag: 4e7f2709-bca0-42ca-93be-0abd81317cf7
+
+	measure 'QLIKE best baseline' = ```
+			
+			        MINX ( FILTER ( ALL ( 'Models' ), 'Models'[family] = "baseline" ), CALCULATE ( [Mean QLIKE] ) )
+			```
+		formatString: 0.000
+		lineageTag: afc3b3ce-d339-490f-9e1e-35c30f0d81d3
+
+	measure 'QLIKE vs best model' = ```
+			
+			        IF ( NOT ISBLANK ( [Mean QLIKE] ), DIVIDE ( [Mean QLIKE], [QLIKE best model] ) - 1 )
+			```
+		formatString: +0.0%;-0.0%;0.0%
+		lineageTag: 0ad209ae-8561-5ee6-88ed-f6f795571aae
+
+	measure 'Best QLIKE in group' = ```
+			
+			        MINX ( VALUES ( 'Models'[model] ), CALCULATE ( [Mean QLIKE] ) )
+			```
+		formatString: 0.000
+		lineageTag: dc8b7efd-c8bc-5b00-866c-dcb8e6be7204
+
+	measure 'Best in group vs best model' = ```
+			
+			        IF ( NOT ISBLANK ( [Best QLIKE in group] ), DIVIDE ( [Best QLIKE in group], [QLIKE best model] ) - 1 )
+			```
+		formatString: +0.0%;-0.0%;0.0%
+		lineageTag: bcb5a701-fa47-5278-b4fd-c410133969d7
+
+	measure 'Best model (MAE)' = ```
+			
+			        VAR scores =
+			            FILTER (
+			                ADDCOLUMNS ( ALL ( 'Models'[model_label] ), "@mae", CALCULATE ( [MAE (vol points)] ) ),
+			                NOT ISBLANK ( [@mae] )
+			            )
+			        RETURN
+			            MAXX ( TOPN ( 1, scores, [@mae], ASC ), 'Models'[model_label] )
+			```
+		lineageTag: 859176d1-da48-5731-bdfb-c99a3bbc988f
+
+	measure 'MAE vs best model' = ```
+			
+			        IF (
+			            NOT ISBLANK ( [MAE (vol points)] ),
+			            DIVIDE ( [MAE (vol points)], MINX ( ALL ( 'Models' ), CALCULATE ( [MAE (vol points)] ) ) ) - 1
+			        )
+			```
+		formatString: +0.0%;-0.0%;0.0%
+		lineageTag: 0ac0bc93-a61a-5161-9441-f27fcac6007a
+
+	measure 'Worst year vs HAR-X' = ```
+			
+			        MAXX ( VALUES ( 'Model scores'[test_year] ), [QLIKE vs HAR-X] )
+			```
+		formatString: +0%;-0%;0%
+		lineageTag: c5308959-b2f9-5e49-8e15-eaaeb5b39fe8
+
+	measure 'Years in top 3' = ```
+			
+			        SUMX (
+			            VALUES ( 'Model scores'[test_year] ),
+			            VAR position =
+			                RANKX (
+			                    FILTER ( ALL ( 'Models' ), NOT ISBLANK ( CALCULATE ( [Mean QLIKE] ) ) ),
+			                    CALCULATE ( [Mean QLIKE] ),
+			                    [Mean QLIKE],
+			                    ASC
+			                )
+			            RETURN IF ( position <= 3, 1, 0 )
+			        )
+			```
+		formatString: 0
+		lineageTag: d7adf93e-3c58-59ef-b6ee-cf18986271c2
+
+	column model
+		dataType: string
+		lineageTag: f4c1da3e-211b-4b38-890b-902305fa652c
+		summarizeBy: none
+		sourceColumn: model
+
+		annotation SummarizationSetBy = Automatic
+
+	column horizon
+		dataType: int64
+		formatString: 0
+		lineageTag: b6ec632f-a39d-4f27-9460-24ce34c80ed1
+		summarizeBy: none
+		sourceColumn: horizon
+
+		annotation SummarizationSetBy = Automatic
+
+	column ticker
+		dataType: string
+		lineageTag: 1ca29783-688f-4632-a11b-997f56320608
+		summarizeBy: none
+		sourceColumn: ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column test_year
+		dataType: int64
+		formatString: 0
+		lineageTag: 37e20f4e-2a6e-4809-9440-71c5c05f684f
+		summarizeBy: sum
+		sourceColumn: test_year
+
+		annotation SummarizationSetBy = Automatic
+
+	column n
+		dataType: int64
+		formatString: 0
+		lineageTag: fd80d9a9-0bab-4985-b3c4-aebb6fd3f1b8
+		summarizeBy: sum
+		sourceColumn: n
+
+		annotation SummarizationSetBy = Automatic
+
+	column qlike
+		dataType: double
+		lineageTag: a6ea54ec-92fe-4317-90bb-538a5cae35a4
+		summarizeBy: sum
+		sourceColumn: qlike
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column mae_vol
+		dataType: double
+		lineageTag: 9be8a345-a70b-4676-b266-7602b21277a9
+		summarizeBy: sum
+		sourceColumn: mae_vol
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Model scores' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_model_scores = Source{[Schema="public",Item="pbi_model_scores"]}[Data]
+				in
+				    public_pbi_model_scores
+
+	annotation PBI_ResultType = Table
+

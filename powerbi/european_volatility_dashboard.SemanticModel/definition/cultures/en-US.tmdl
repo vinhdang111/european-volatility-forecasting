@@ -1,0 +1,473 @@
+cultureInfo en-US
+
+	linguisticMetadata =
+			{
+			  "Version": "2.0.0",
+			  "Language": "en-US",
+			  "Entities": {
+			    "model_scores.best_qlike_in_group": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "Best QLIKE in group"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Best QLIKE": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "model_scores.mae_vol_points": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "MAE (vol points)"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "MAE": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "model_scores.mean_qlike": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "Mean QLIKE"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "QLIKE": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "model_scores.test_year": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "test_year"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Year": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "model_scores.qlike_vs_best_model": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "QLIKE vs best model"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Gap to best": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "models.model_label": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Models",
+			          "ConceptualProperty": "model_label"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Model": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "regime_scores.qlike_calm": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Regime scores",
+			          "ConceptualProperty": "QLIKE calm"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "QLIKE calm": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "regime_scores.qlike_calm_rank": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Regime scores",
+			          "ConceptualProperty": "QLIKE calm rank"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Rank calm": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "regime_scores.qlike_stress": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Regime scores",
+			          "ConceptualProperty": "QLIKE stress"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "QLIKE stress": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "regime_scores.qlike_stress_rank": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Regime scores",
+			          "ConceptualProperty": "QLIKE stress rank"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Rank stress": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "forecast_paths.forecast_bias_pts": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Forecast paths",
+			          "ConceptualProperty": "Forecast bias (pts)"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Bias": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "forecast_paths.qlike_period": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Forecast paths",
+			          "ConceptualProperty": "QLIKE (period)"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "QLIKE": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "var_yearly.seriesyears": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "VaR yearly",
+			          "ConceptualProperty": "Series-years"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Years (company or index)": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "var_backtest.average_var": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "VaR backtest",
+			          "ConceptualProperty": "Average VaR"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Average VaR": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "var_backtest.violation_rate": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "VaR backtest",
+			          "ConceptualProperty": "Violation rate"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Violation rate": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "var_backtest.series_passing_kupiec": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "VaR backtest",
+			          "ConceptualProperty": "Series passing Kupiec"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Passing the Kupiec test": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "var_backtest.quantile_loss_bp": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "VaR backtest",
+			          "ConceptualProperty": "Quantile loss (bp)"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Quantile loss (bp)": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "var_tests.var_significance": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "VaR tests",
+			          "ConceptualProperty": "VaR significance"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Significance vs HAR-X": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "model_scores.years_in_top_3": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "Years in top 3"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Years in the top 3": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "model_scores.qlike_vs_harx": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "QLIKE vs HAR-X"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "QLIKE vs HAR-X": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "model_scores.worst_year_vs_harx": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "Model scores",
+			          "ConceptualProperty": "Worst year vs HAR-X"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Worst year vs HAR-X": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    },
+			    "var_yearly.green_zone_share": {
+			      "Definition": {
+			        "Binding": {
+			          "ConceptualEntity": "VaR yearly",
+			          "ConceptualProperty": "Green zone share"
+			        }
+			      },
+			      "State": "Generated",
+			      "Terms": [
+			        {
+			          "Share of years in the green zone": {
+			            "State": "Suggested",
+			            "Source": {
+			              "Type": "External",
+			              "Agent": "PowerBI.VisualColumnRename"
+			            },
+			            "Weight": 0.9
+			          }
+			        }
+			      ]
+			    }
+			  }
+			}
+		contentType: json
+

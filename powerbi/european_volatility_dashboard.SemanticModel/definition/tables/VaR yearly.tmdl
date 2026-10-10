@@ -1,0 +1,139 @@
+table 'VaR yearly'
+	lineageTag: b9d7351e-b1aa-45cf-aaa5-1088c9def30b
+
+	measure Series-years = ```
+			
+			        COUNTROWS ( 'VaR yearly' )
+			```
+		formatString: 0
+		lineageTag: c9844bbe-c441-4715-ae74-e9dedbc78604
+
+	measure 'Green zone share' = ```
+			
+			        VAR all_years =
+			            CALCULATE (
+			                COUNTROWS ( 'VaR yearly' ),
+			                REMOVEFILTERS ( 'VaR yearly'[zone_label], 'VaR yearly'[zone_order], 'VaR yearly'[zone] )
+			            )
+			        VAR green =
+			            CALCULATE (
+			                COUNTROWS ( 'VaR yearly' ),
+			                REMOVEFILTERS ( 'VaR yearly'[zone_label], 'VaR yearly'[zone_order], 'VaR yearly'[zone] ),
+			                'VaR yearly'[zone] = "green"
+			            )
+			        RETURN
+			            DIVIDE ( green, all_years )
+			```
+		formatString: 0%;-0%;0%
+		lineageTag: 16302b47-1a96-5ea6-8ee7-e51be5f485d1
+
+	column model
+		dataType: string
+		lineageTag: 7192d9c2-48c7-46a2-8fe4-bfe51eb5578c
+		summarizeBy: none
+		sourceColumn: model
+
+		annotation SummarizationSetBy = Automatic
+
+	column method
+		dataType: string
+		lineageTag: 1a6ea6e5-12c5-4ff1-a4e8-64ebce08912a
+		summarizeBy: none
+		sourceColumn: method
+
+		annotation SummarizationSetBy = Automatic
+
+	column confidence
+		dataType: int64
+		formatString: 0
+		lineageTag: dcc715b5-24c1-43dd-9d76-396504fab4d4
+		summarizeBy: none
+		sourceColumn: confidence
+
+		annotation SummarizationSetBy = Automatic
+
+	column ticker
+		dataType: string
+		lineageTag: 4ff01720-d9d6-4d08-a98e-c61ea258db25
+		summarizeBy: none
+		sourceColumn: ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column year
+		dataType: int64
+		formatString: 0
+		lineageTag: ae85b41f-2327-4213-a5bf-890c17073fa3
+		summarizeBy: sum
+		sourceColumn: year
+
+		annotation SummarizationSetBy = Automatic
+
+	column n
+		dataType: int64
+		formatString: 0
+		lineageTag: db107c66-4f04-4a49-a06b-c7c97c705386
+		summarizeBy: sum
+		sourceColumn: n
+
+		annotation SummarizationSetBy = Automatic
+
+	column violations
+		dataType: int64
+		formatString: 0
+		lineageTag: 2c673ccc-189e-478b-8381-ff7029ca578d
+		summarizeBy: sum
+		sourceColumn: violations
+
+		annotation SummarizationSetBy = Automatic
+
+	column zone
+		dataType: string
+		lineageTag: 5cc4abc9-1a26-4e6d-a268-06db9b778575
+		summarizeBy: none
+		sourceColumn: zone
+
+		annotation SummarizationSetBy = Automatic
+
+	column zone_order
+		dataType: int64
+		formatString: 0
+		lineageTag: 743a7164-3453-4a6e-87e3-52e9379127f1
+		summarizeBy: sum
+		sourceColumn: zone_order
+
+		annotation SummarizationSetBy = Automatic
+
+	column zone_label
+		dataType: string
+		lineageTag: d159c359-de96-4b45-9347-99f900ec7a1f
+		summarizeBy: none
+		sourceColumn: zone_label
+		sortByColumn: zone_order
+
+		changedProperty = SortByColumn
+
+		annotation SummarizationSetBy = Automatic
+
+	column full_year
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: a79310e5-87ed-45e0-aaf5-fc37aae30fd5
+		summarizeBy: none
+		sourceColumn: full_year
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'VaR yearly' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_var_yearly = Source{[Schema="public",Item="pbi_var_yearly"]}[Data]
+				in
+				    public_pbi_var_yearly
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

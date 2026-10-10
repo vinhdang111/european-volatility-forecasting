@@ -1,0 +1,118 @@
+table 'Regime scores'
+	lineageTag: 5ddbade1-133c-5c45-8679-a5988dfe61e4
+
+	measure 'QLIKE calm' = ```
+			
+			        CALCULATE (
+			            DIVIDE ( SUMX ( 'Regime scores', 'Regime scores'[qlike] * 'Regime scores'[n] ), SUM ( 'Regime scores'[n] ) ),
+			            'Regime scores'[regime] = "Calm periods"
+			        )
+			```
+		formatString: 0.000
+		lineageTag: 557dedb9-b5c0-52f0-ac61-f97d3f7dc524
+
+	measure 'QLIKE stress' = ```
+			
+			        CALCULATE (
+			            DIVIDE ( SUMX ( 'Regime scores', 'Regime scores'[qlike] * 'Regime scores'[n] ), SUM ( 'Regime scores'[n] ) ),
+			            'Regime scores'[regime] = "Stress periods"
+			        )
+			```
+		formatString: 0.000
+		lineageTag: f3bec491-e264-5bd5-9f73-35d17ba5c288
+
+	measure 'QLIKE calm rank' = ```
+			
+			        IF (
+			            NOT ISBLANK ( [QLIKE calm] ),
+			            RANKX (
+			                FILTER ( ALL ( 'Models' ), NOT ISBLANK ( CALCULATE ( [QLIKE calm] ) ) ),
+			                CALCULATE ( [QLIKE calm] ),
+			                [QLIKE calm],
+			                ASC
+			            )
+			        )
+			```
+		formatString: 0
+		lineageTag: 9c54fdeb-770d-5bd1-8fa8-8649f1962165
+
+	measure 'QLIKE stress rank' = ```
+			
+			        IF (
+			            NOT ISBLANK ( [QLIKE stress] ),
+			            RANKX (
+			                FILTER ( ALL ( 'Models' ), NOT ISBLANK ( CALCULATE ( [QLIKE stress] ) ) ),
+			                CALCULATE ( [QLIKE stress] ),
+			                [QLIKE stress],
+			                ASC
+			            )
+			        )
+			```
+		formatString: 0
+		lineageTag: 6298c98c-3e11-51b6-95f0-876d8b35d766
+
+	column model
+		dataType: string
+		lineageTag: 8a8d8fee-54c6-52fb-906c-2f9e347aadee
+		summarizeBy: none
+		sourceColumn: model
+
+		annotation SummarizationSetBy = Automatic
+
+	column horizon
+		dataType: int64
+		formatString: 0
+		lineageTag: d5b3455e-6d57-5a80-84a8-1bf46fb8afc8
+		summarizeBy: none
+		sourceColumn: horizon
+
+		annotation SummarizationSetBy = Automatic
+
+	column regime
+		dataType: string
+		lineageTag: e05b80d8-9bd1-5897-be4f-38b6337aaf23
+		summarizeBy: none
+		sourceColumn: regime
+
+		annotation SummarizationSetBy = Automatic
+
+	column n
+		dataType: int64
+		formatString: 0
+		lineageTag: 7340e331-1f76-5b3f-aa4e-9543191495c7
+		summarizeBy: sum
+		sourceColumn: n
+
+		annotation SummarizationSetBy = Automatic
+
+	column qlike
+		dataType: double
+		lineageTag: dd136f28-29dd-5c89-9173-34d75891c136
+		summarizeBy: sum
+		sourceColumn: qlike
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column mae_vol
+		dataType: double
+		lineageTag: 8e66afa1-22fd-5a4f-8838-e0ec8539cfd2
+		summarizeBy: sum
+		sourceColumn: mae_vol
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'Regime scores' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_regime_scores = Source{[Schema="public",Item="pbi_regime_scores"]}[Data]
+				in
+				    public_pbi_regime_scores
+
+	annotation PBI_ResultType = Table
+

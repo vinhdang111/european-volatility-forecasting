@@ -1,0 +1,65 @@
+table 'VaR tests'
+	lineageTag: bef07cd9-7417-497a-97b8-c631d865bae9
+
+	measure 'VaR significance' = ```
+			
+			        SELECTEDVALUE ( 'VaR tests'[significance] )
+			```
+		lineageTag: adbddd52-a1c1-4848-a4a8-17a5831a01a2
+
+	column model
+		dataType: string
+		lineageTag: d8e1990c-7c86-4f72-8a34-dbea6f4929a4
+		summarizeBy: none
+		sourceColumn: model
+
+		annotation SummarizationSetBy = Automatic
+
+	column confidence
+		dataType: int64
+		formatString: 0
+		lineageTag: eb5a49e1-1cc9-4770-99a4-abf1be7804ac
+		summarizeBy: none
+		sourceColumn: confidence
+
+		annotation SummarizationSetBy = Automatic
+
+	column quantile_loss_vs_harx
+		dataType: double
+		lineageTag: 399737da-fe22-4615-8db2-60e18d4f1347
+		summarizeBy: sum
+		sourceColumn: quantile_loss_vs_harx
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column p_value
+		dataType: double
+		lineageTag: 99af9715-4087-485e-85f8-650c08437232
+		summarizeBy: sum
+		sourceColumn: p_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column significance
+		dataType: string
+		lineageTag: 174bb638-2044-4d2e-94a7-fc7d0dbf77c2
+		summarizeBy: none
+		sourceColumn: significance
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'VaR tests' = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_var_tests = Source{[Schema="public",Item="pbi_var_tests"]}[Data]
+				in
+				    public_pbi_var_tests
+
+	annotation PBI_ResultType = Table
+

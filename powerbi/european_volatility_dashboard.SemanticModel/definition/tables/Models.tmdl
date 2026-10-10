@@ -1,0 +1,70 @@
+table Models
+	lineageTag: 3ca9398a-75e4-4a60-b296-2b2ec9e70934
+
+	column model
+		dataType: string
+		lineageTag: b41c68ca-9f54-4883-a462-ff4a400053e2
+		summarizeBy: none
+		sourceColumn: model
+
+		annotation SummarizationSetBy = Automatic
+
+	column model_label
+		dataType: string
+		lineageTag: 4c673f87-e8f4-40d7-ab98-32855404b372
+		summarizeBy: none
+		sourceColumn: model_label
+		sortByColumn: model_order
+
+		changedProperty = SortByColumn
+
+		annotation SummarizationSetBy = Automatic
+
+	column family
+		dataType: string
+		lineageTag: d076f5a9-93e2-48dd-80b6-d62e214e37b0
+		summarizeBy: none
+		sourceColumn: family
+
+		annotation SummarizationSetBy = Automatic
+
+	column family_label
+		dataType: string
+		lineageTag: 203bcab1-80db-4f26-b085-ef9256cfc7ab
+		summarizeBy: none
+		sourceColumn: family_label
+		sortByColumn: family_order
+
+		changedProperty = SortByColumn
+
+		annotation SummarizationSetBy = Automatic
+
+	column family_order
+		dataType: int64
+		formatString: 0
+		lineageTag: b66cb3cf-9d02-4d36-84bf-315d208a18fb
+		summarizeBy: sum
+		sourceColumn: family_order
+
+		annotation SummarizationSetBy = Automatic
+
+	column model_order
+		dataType: int64
+		formatString: 0
+		lineageTag: 47a0f766-6d63-4083-8bc4-6e11d22e5b20
+		summarizeBy: sum
+		sourceColumn: model_order
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Models = m
+		mode: import
+		source =
+				let
+				    Source = PostgreSQL.Database("localhost:5432", "volatility_db"),
+				    public_pbi_models = Source{[Schema="public",Item="pbi_models"]}[Data]
+				in
+				    public_pbi_models
+
+	annotation PBI_ResultType = Table
+

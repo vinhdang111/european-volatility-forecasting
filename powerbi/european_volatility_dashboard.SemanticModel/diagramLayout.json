@@ -1,0 +1,166 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 0,
+        "y": 45.822933308011081
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 1410.8303067996449,
+            "y": 551.29695983439387
+          },
+          "nodeIndex": "Calendar",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 50,
+            "y": 490.59630622029545
+          },
+          "nodeIndex": "Confidence",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1098.5745833367955,
+            "y": 564.497552839712
+          },
+          "nodeIndex": "Forecast paths",
+          "size": {
+            "height": 248,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1176.8303067996449,
+            "y": 255.75780797290679
+          },
+          "nodeIndex": "Horizons",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 882.38571901329635,
+            "y": 257.26025057604841
+          },
+          "nodeIndex": "Model scores",
+          "size": {
+            "height": 248,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 968.09332320669023,
+            "y": -50
+          },
+          "nodeIndex": "Model tests",
+          "size": {
+            "height": 248,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 635.51847601269344,
+            "y": -25.25460460099066
+          },
+          "nodeIndex": "Models",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 680.49021655526974,
+            "y": 560.555146698297
+          },
+          "nodeIndex": "Series",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 342.7889301050501,
+            "y": 245.692085361723
+          },
+          "nodeIndex": "VaR backtest",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 255.239033489689,
+            "y": 1004.5939196687877
+          },
+          "nodeIndex": "VaR daily",
+          "size": {
+            "height": 248,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 50.03402896840214,
+            "y": -2.6705724767252832
+          },
+          "nodeIndex": "VaR tests",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 388.64816395798937,
+            "y": 651.78727908155156
+          },
+          "nodeIndex": "VaR yearly",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        }
+      ],
+      "name": "All tables",
+      "zoomValue": 63.287087723234038,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "All tables",
+  "defaultDiagram": "All tables"
+}
