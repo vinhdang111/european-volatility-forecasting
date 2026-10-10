@@ -4,6 +4,8 @@
 
 This project benchmarks 15 volatility forecasting models, from simple baselines and GARCH to gradient boosting and Transformer neural networks, on **50 large European stocks and 9 European equity indices** (2000 to 2026). It then tests their practical value for risk management through a **Value-at-Risk backtest**, and presents the results in a **Power BI dashboard**.
 
+**View online (no download needed):** 📊 [Live Power BI dashboard](https://app.powerbi.com/view?r=eyJrIjoiZTIxNWU1Y2EtZjY1ZC00Zjc0LTg0NTgtOTYxY2ZlMzkzOGYxIiwidCI6Ijk2OTJhM2QzLTJhMDgtNGVjOC1hMGJkLTFkYjM1NWViNDIzMCIsImMiOjh9&pageName=cfe0b6f215b6788585de)
+
 ## Key results
 
 | Question | Answer |
@@ -191,6 +193,8 @@ The 1-day **Value-at-Risk** (VaR) at 99% is the loss that should be exceeded on 
 ## Power BI dashboard
 
 Four pages built in Power BI Desktop on thirteen PostgreSQL views ([`sql/powerbi_views.sql`](sql/powerbi_views.sql)); all statistics are computed in Python and SQL, the dashboard only aggregates them with 60 DAX measures. Colour rule: blue = better, orange = worse. Setup guide: [`powerbi/README.md`](powerbi/README.md).
+
+📊 **[Open the live dashboard](https://app.powerbi.com/view?r=eyJrIjoiZTIxNWU1Y2EtZjY1ZC00Zjc0LTg0NTgtOTYxY2ZlMzkzOGYxIiwidCI6Ijk2OTJhM2QzLTJhMDgtNGVjOC1hMGJkLTFkYjM1NWViNDIzMCIsImMiOjh9&pageName=cfe0b6f215b6788585de)** (no download needed)
 
 **1. Model performance:** ranking of the 15 models by QLIKE and by MAE, calm vs stress periods, best model per family and per year.
 
