@@ -221,9 +221,9 @@ Four pages built in Power BI Desktop on thirteen PostgreSQL views ([`sql/powerbi
 
 ## Tech stack
 
-- **Python:** pandas, NumPy, SciPy, yfinance; LightGBM and Optuna; PyTorch (LSTM and Transformer written from scratch); matplotlib; pytest
-- **Database:** PostgreSQL, SQLAlchemy, psycopg2; scores and dashboard views in SQL
-- **Dashboard:** Power BI Desktop (Power BI project format, DAX)
+- **Python:** pandas, NumPy, SciPy, yfinance; LightGBM and Optuna; PyTorch (LSTM and Transformer); matplotlib; pytest
+- **Database:** PostgreSQL, SQLAlchemy, psycopg2
+- **Dashboard:** Power BI Desktop (Power Query, DAX, data modelling)
 
 ## Repository structure
 
